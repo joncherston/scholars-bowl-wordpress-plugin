@@ -28,7 +28,9 @@ To cut the connection, click **Revoke token** on the API Access page (or generat
 
 ## Roll back to 1.0.6
 
-1. **WP Admin → Plugins → Add New Plugin → Upload Plugin**, choose `releases/scholars-bowl-registration-1.0.6-installed.zip` (the copy that was installed before 1.0.7), **Install Now**, then **Replace current with uploaded**.
+1. **WP Admin → Plugins → Add New Plugin → Upload Plugin**, choose `releases/scholars-bowl-registration-1.0.6.zip`, **Install Now**, then **Replace current with uploaded**.
+   - This is the 1.0.6 zip that was on GitHub (`scholars-bowl-registration.zip`, unchanged byte for byte). It was not copied from the server; the installed plugin's version and its first 39 lines matched it when checked in the Plugin File Editor on October 16, 2026.
+   - Rolling back also restores 1.0.6's backup copies and debug scripts.
 2. Optional: the API token options (`sbr_api_token_hash`, `sbr_api_token_created`) can stay; 1.0.6 ignores them.
 
 Registrations, events, and payments are untouched by installing or rolling back.

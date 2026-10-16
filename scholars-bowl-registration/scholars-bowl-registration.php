@@ -3,7 +3,7 @@
  * Plugin Name: Scholars' Bowl Registration System
  * Plugin URI: https://suscholarsbowl.com
  * Description: Complete registration system for Scholars' Bowl competitions with payment processing and admin management.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Scholars' Bowl Team
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 
 define('SBR_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SBR_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('SBR_VERSION', '1.0.6');
+define('SBR_VERSION', '1.0.7');
 
 // Read-only REST API for the scoring system (1.0.7).
 require_once SBR_PLUGIN_PATH . 'includes/rest-api.php';
