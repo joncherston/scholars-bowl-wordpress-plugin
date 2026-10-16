@@ -134,8 +134,7 @@ require_once SBR_PLUGIN_PATH . 'includes/export-csv.php';
 
 // Handle export requests
 if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
-    $registrations_for_export = $wpdb->get_results("SELECT * FROM $table_name ORDER BY registration_date DESC");
-    export_registrations_csv($registrations_for_export);
+    export_registrations_csv(sbr_registrations_for_export());
 }
 
 // Handle filtering
@@ -281,7 +280,7 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
                 <span class="dashicons dashicons-plus-alt" style="margin-top: 3px;"></span> Add New Registration
             </button>
             <a href="<?php echo add_query_arg(['action' => 'export_csv'], $_SERVER['REQUEST_URI']); ?>"
-               class="button button-primary">Export to CSV</a>
+               class="button button-primary"><?php echo empty($_GET['event_filter']) ? 'Export to CSV' : 'Export This Event to CSV'; ?></a>
         </div>
 
         <br class="clear">

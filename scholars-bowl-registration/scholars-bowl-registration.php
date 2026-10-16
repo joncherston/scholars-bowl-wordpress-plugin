@@ -1029,51 +1029,63 @@ KEY blocked (blocked)
         $total_amount = $total_attendees * $rate;
         $deposit_amount = ($payment_option === 'deposit') ? $deposit_rate : $total_amount;
 
-        // Check for existing registrations from same email within last 10 minutes to prevent duplicates
-        $recent_cutoff = date('Y-m-d H:i:s', strtotime('-10 minutes'));
-        $existing_registration = $wpdb->get_row($wpdb->prepare(
-            "SELECT id FROM $table_name WHERE contact_email = %s AND school_name = %s AND registration_date > %s AND payment_status IN ('pending', 'processing')",
-            $contact_email,
-            $school_name,
-            $recent_cutoff
-        ));
+        $registration_data = array(
+            'event_id' => $event_id,
+            'school_name' => $school_name,
+            'contact_name' => $contact_name,
+            'contact_email' => $contact_email,
+            'contact_phone' => $contact_phone,
+            'dietary_restrictions' => $dietary_restrictions,
+            'competing_students' => $competing_students,
+            'additional_attendees' => $additional_attendees,
+            'additional_students' => $additional_students,
+            'additional_adults' => $additional_adults,
+            'coaches' => $coaches,
+            'grade_level' => $grade_level,
+            'session_time' => $session_time,
+            'payment_option' => $payment_option,
+            'payment_method' => $payment_method,
+            'total_amount' => $total_amount,
+            'deposit_amount' => $deposit_amount,
+            'payment_status' => ($payment_method === 'check' || $payment_method === 'cash') ? 'pending' : 'processing',
+            'amount_paid' => 0,
+            'balance_due' => $total_amount
+        );
 
-        if ($existing_registration && $payment_method !== 'check' && $payment_method !== 'cash') {
-            // For credit card payments, return the existing registration ID instead of creating a duplicate
-            wp_send_json_success(array(
-                'registration_id' => $existing_registration->id,
-                'amount' => $deposit_amount,
-                'requires_payment' => true,
-                'message' => 'Using existing registration for payment processing.'
+        // A card registration resubmitted unchanged within 10 minutes, before it was paid,
+        // reuses the existing registration instead of creating a duplicate
+        if ($payment_method !== 'check' && $payment_method !== 'cash') {
+            $recent_cutoff = date('Y-m-d H:i:s', strtotime('-10 minutes'));
+            $recent_registrations = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM $table_name WHERE contact_email = %s AND school_name = %s AND registration_date > %s AND payment_status = 'processing'",
+                $contact_email,
+                $school_name,
+                $recent_cutoff
             ));
-            return;
+            foreach ($recent_registrations as $existing_registration) {
+                $same = true;
+                foreach ($registration_data as $field => $value) {
+                    if (!property_exists($existing_registration, $field) || (string) $existing_registration->$field != (string) $value) {
+                        $same = false;
+                        break;
+                    }
+                }
+                if ($same) {
+                    wp_send_json_success(array(
+                        'registration_id' => $existing_registration->id,
+                        'amount' => $deposit_amount,
+                        'requires_payment' => true,
+                        'message' => 'Using existing registration for payment processing.'
+                    ));
+                    return;
+                }
+            }
         }
 
         $result = $wpdb->insert(
             $table_name,
-            array(
-                'event_id' => $event_id,
-                'school_name' => $school_name,
-                'contact_name' => $contact_name,
-                'contact_email' => $contact_email,
-                'contact_phone' => $contact_phone,
-                'dietary_restrictions' => $dietary_restrictions,
-                'competing_students' => $competing_students,
-                'additional_attendees' => $additional_attendees,
-                'additional_students' => $additional_students,
-                'additional_adults' => $additional_adults,
-                'coaches' => $coaches,
-                'grade_level' => $grade_level,
-                'session_time' => $session_time,
-                'payment_option' => $payment_option,
-                'payment_method' => $payment_method,
-                'total_amount' => $total_amount,
-                'deposit_amount' => $deposit_amount,
-                'payment_status' => ($payment_method === 'check' || $payment_method === 'cash') ? 'pending' : 'processing',
-                'amount_paid' => 0,
-                'balance_due' => $total_amount
-            ),
-            array('%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%f')
+            $registration_data,
+            array('%d', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s', '%f', '%f', '%s', '%f', '%f')
         );
 
         if ($result !== false) {
@@ -2990,14 +3002,7 @@ KEY blocked (blocked)
             $processing_cutoff
         ));
 
-        // Delete failed registrations older than 7 days
-        $failed_cutoff = date('Y-m-d H:i:s', strtotime('-7 days'));
-        $wpdb->query($wpdb->prepare(
-            "DELETE FROM $table_name
-             WHERE payment_status = 'failed'
-             AND registration_date < %s",
-            $failed_cutoff
-        ));
+        // Failed registrations are kept (1.0.6 deleted them after 7 days)
     }
 
 }
@@ -3546,17 +3551,32 @@ function sbr_save_registration_edit() {
         wp_send_json_error('Discount reason is required when applying a discount');
     }
     
-    // Calculate total based on event pricing
-    $per_student_rate = floatval($event->standard_rate);
-    $total = $new_data['competing_students'] * $per_student_rate;
-    $total += $new_data['additional_students'] * $per_student_rate;
-    $total += $new_data['additional_adults'] * $per_student_rate;
-    $extra_coaches = max(0, $new_data['coaches'] - intval($event->free_coaches));
-    $total += $extra_coaches * $per_student_rate;
-    $total -= $new_data['discount_amount'];
+    // Reprice only when an attendee count, the coaches, or the discount changed, and then at
+    // the rate the school registered at (early bird if it registered by the deadline)
+    $reprice = false;
+    foreach (array('competing_students', 'additional_students', 'additional_adults', 'coaches', 'discount_amount') as $field) {
+        if (floatval($current->$field ?? 0) != floatval($new_data[$field])) {
+            $reprice = true;
+        }
+    }
     
-    $new_data['total_amount'] = $total;
-    $new_data['balance_due'] = $total - floatval($current->amount_paid);
+    if ($reprice) {
+        $registered_on = substr((string) $current->registration_date, 0, 10);
+        $early_bird = !empty($event->early_bird_deadline) && $registered_on <= $event->early_bird_deadline;
+        $per_student_rate = floatval($early_bird ? $event->early_bird_rate : $event->standard_rate);
+        $total = $new_data['competing_students'] * $per_student_rate;
+        $total += $new_data['additional_students'] * $per_student_rate;
+        $total += $new_data['additional_adults'] * $per_student_rate;
+        $extra_coaches = max(0, $new_data['coaches'] - intval($event->free_coaches));
+        $total += $extra_coaches * $per_student_rate;
+        $total -= $new_data['discount_amount'];
+        
+        $new_data['total_amount'] = $total;
+        $new_data['balance_due'] = $total - floatval($current->amount_paid);
+    } else {
+        $new_data['total_amount'] = $current->total_amount;
+        $new_data['balance_due'] = $current->balance_due;
+    }
     $new_data['last_updated'] = current_time('mysql');
     
     // Update the registration

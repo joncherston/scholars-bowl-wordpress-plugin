@@ -4,7 +4,7 @@
 
 ## Install 1.0.7
 
-1. **Back up first.** In WP Admin → Scholars' Bowl → Registrations, click **Export to CSV** and keep the file. Take a site backup or snapshot if your host offers one.
+1. **Back up first.** In WP Admin → Scholars' Bowl → Registrations, with the event filter on **All events**, click **Export to CSV** and keep the file. Take a site backup or snapshot if your host offers one.
 2. Go to **WP Admin → Plugins → Add New Plugin → Upload Plugin**, choose `releases/scholars-bowl-registration-1.0.7.zip`, and click **Install Now**.
 3. WordPress says the plugin is already installed. Choose **Replace current with uploaded**. This replaces the whole plugin folder, which also removes the old backup copies and debug scripts from the server.
 4. Make sure the plugin is **active** (Plugins page).

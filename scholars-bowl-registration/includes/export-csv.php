@@ -5,7 +5,8 @@
  * In 1.0.7 the export runs on admin_init, before WordPress starts sending the
  * admin page, so the download is a clean CSV file instead of the admin page
  * followed by CSV rows. The columns are unchanged except for three new ones
- * at the end (Classification, Event ID, Event Name).
+ * at the end (Classification, Event ID, Event Name). When the Registrations
+ * page is filtered to one event, only that event is exported.
  */
 
 if (!defined('ABSPATH')) {
@@ -80,6 +81,19 @@ if (!function_exists('export_registrations_csv')) {
     }
 }
 
+// The registrations to export: one event when the Registrations page is filtered to it, otherwise all.
+function sbr_registrations_for_export() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'scholars_bowl_registrations';
+    if (!empty($_GET['event_filter'])) {
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $table_name WHERE event_id = %d ORDER BY registration_date DESC",
+            intval($_GET['event_filter'])
+        ));
+    }
+    return $wpdb->get_results("SELECT * FROM $table_name ORDER BY registration_date DESC");
+}
+
 function sbr_maybe_export_registrations_csv() {
     if (!is_admin() || !isset($_GET['page'], $_GET['action'])) {
         return;
@@ -90,8 +104,6 @@ function sbr_maybe_export_registrations_csv() {
     if (!current_user_can('manage_options')) {
         return;
     }
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'scholars_bowl_registrations';
-    export_registrations_csv($wpdb->get_results("SELECT * FROM $table_name ORDER BY registration_date DESC"));
+    export_registrations_csv(sbr_registrations_for_export());
 }
 add_action('admin_init', 'sbr_maybe_export_registrations_csv');

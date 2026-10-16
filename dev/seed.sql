@@ -11,6 +11,26 @@ ALTER TABLE wp_scholars_bowl_registrations
   ADD COLUMN IF NOT EXISTS status_notes text;
 ALTER TABLE wp_scholars_bowl_events
   ADD COLUMN IF NOT EXISTS registration_deadline date DEFAULT NULL;
+-- The public form never sets registration_date, yet live rows have real dates, so the live
+-- column defaults to the current time (the plugin's CREATE TABLE says '0000-00-00 00:00:00').
+ALTER TABLE wp_scholars_bowl_registrations
+  MODIFY registration_date datetime DEFAULT CURRENT_TIMESTAMP;
+-- The admin Edit dialog writes to this table; no plugin code creates it.
+CREATE TABLE IF NOT EXISTS wp_scholars_bowl_registration_audit (
+  id mediumint(9) NOT NULL AUTO_INCREMENT,
+  registration_id mediumint(9) NOT NULL,
+  user_id bigint(20) DEFAULT NULL,
+  user_name varchar(255) DEFAULT NULL,
+  action varchar(50) DEFAULT NULL,
+  field_changed varchar(100) DEFAULT NULL,
+  old_value text,
+  new_value text,
+  timestamp datetime DEFAULT NULL,
+  ip_address varchar(100) DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY registration_id (registration_id)
+);
+DELETE FROM wp_scholars_bowl_registration_audit;
 
 DELETE FROM wp_scholars_bowl_registrations;
 DELETE FROM wp_scholars_bowl_events;
