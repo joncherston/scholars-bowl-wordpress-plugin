@@ -2,18 +2,33 @@
 
 **Install after October 28, 2026.** Nothing here should be done to the live site before the event.
 
+## What 1.0.7 changes
+
+Built from the 1.0.6 zip that was on GitHub, not from a copy taken from the server (see Roll back).
+
+- **Scoring system connection:** a read-only API, protected by a token from **Scholars' Bowl → API Access**.
+- **Export to CSV:** downloads a clean CSV file, adds Classification, Event ID and Event Name at the end, and exports only the event chosen in the page's filter. **All Events** still exports everything.
+- **Payment details are saved:** new registrations store their payment option, method and status. 1.0.6 saved them as `0.000000`. Existing rows keep that value.
+- **Unpaid card registrations:** a card registration still unpaid 30 minutes after it was made is marked "failed". Failed registrations are kept; 1.0.6 deleted them after 7 days.
+- **Resubmitted card registrations:** a card registration submitted again unchanged within 10 minutes, before the card was charged, reuses the first registration instead of creating a second one.
+- **Admin Edit dialog:**
+  - Saving no longer changes values missing from its lists. Before, a card payment in full became "pending", 7A or a blank classification became "Private", and a waitlisted school became "pending".
+  - Saving no longer reprices everything at the standard rate. The total changes only when an attendee count, the coaches, or the discount changes, and then at the rate the school registered at.
+- **Admin Add registration:** offers 1A and 7A.
+- **Removed:** 23 backup copies of plugin files, five debug scripts that ran without a sign-in, and one unused file that didn't load.
+
 ## Install 1.0.7
 
-1. **Back up first.** In WP Admin → Scholars' Bowl → Registrations, with the event filter on **All events**, click **Export to CSV** and keep the file. Take a site backup or snapshot if your host offers one.
+1. **Back up first.** In WP Admin → Scholars' Bowl → Registrations, with the event filter on **All Events**, click **Export to CSV** and keep the file. Take a site backup or snapshot if your host offers one.
 2. Go to **WP Admin → Plugins → Add New Plugin → Upload Plugin**, choose `releases/scholars-bowl-registration-1.0.7.zip`, and click **Install Now**.
 3. WordPress says the plugin is already installed. Choose **Replace current with uploaded**. This replaces the whole plugin folder, which also removes the old backup copies and debug scripts from the server.
 4. Make sure the plugin is **active** (Plugins page).
 5. Check:
    - The registration page loads and the form looks the same.
-   - **Scholars' Bowl → Registrations → Export to CSV** downloads a CSV file (not a web page), with three new columns at the end: Classification, Event ID, Event Name.
+   - **Scholars' Bowl → Registrations → Export to CSV** downloads a CSV file (not a web page), with three new columns at the end: Classification, Event ID, Event Name. With an event chosen in the filter, the button reads **Export This Event to CSV**.
    - **Scholars' Bowl → API Access** exists.
 
-Nothing about the database changes: 1.0.7 adds no tables or columns. It stores only the API token's hash in two WordPress options.
+Installing changes no existing registrations, tables or columns. 1.0.7 stores only the API token's hash in two WordPress options.
 
 ## Connect the scoring system
 
