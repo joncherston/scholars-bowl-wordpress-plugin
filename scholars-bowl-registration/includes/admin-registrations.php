@@ -1283,11 +1283,13 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
                     <td>
                         <select id="new_grade_level" name="grade_level" required>
                             <option value="">Select...</option>
+                            <option value="7A">7A</option>
                             <option value="6A">6A</option>
                             <option value="5A">5A</option>
                             <option value="4A">4A</option>
                             <option value="3A">3A</option>
                             <option value="2A">2A</option>
+                            <option value="1A">1A</option>
                             <option value="Private">Private</option>
                         </select>
                     </td>

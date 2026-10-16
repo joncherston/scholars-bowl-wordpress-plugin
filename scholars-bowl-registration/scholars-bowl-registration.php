@@ -3182,13 +3182,7 @@ function sbr_get_registration_details() {
                     <p>
                         <label><strong>Grade Level:</strong></label><br>
                         <select id="grade_level" name="grade_level" style="width: 100%;">
-                            <option value="Private" <?php selected($registration->grade_level, 'Private'); ?>>Private</option>
-                            <option value="1A" <?php selected($registration->grade_level, '1A'); ?>>1A</option>
-                            <option value="2A" <?php selected($registration->grade_level, '2A'); ?>>2A</option>
-                            <option value="3A" <?php selected($registration->grade_level, '3A'); ?>>3A</option>
-                            <option value="4A" <?php selected($registration->grade_level, '4A'); ?>>4A</option>
-                            <option value="5A" <?php selected($registration->grade_level, '5A'); ?>>5A</option>
-                            <option value="6A" <?php selected($registration->grade_level, '6A'); ?>>6A</option>
+                            <?php sbr_select_options(array('Private' => 'Private', '1A' => '1A', '2A' => '2A', '3A' => '3A', '4A' => '4A', '5A' => '5A', '6A' => '6A', '7A' => '7A'), $registration->grade_level); ?>
                         </select>
                     </p>
                     <p>
@@ -3250,17 +3244,13 @@ function sbr_get_registration_details() {
                         <p>
                             <label><strong>Payment Status:</strong></label><br>
                             <select id="payment_status" name="payment_status" style="width: 100%;">
-                                <option value="pending" <?php selected($registration->payment_status, 'pending'); ?>>Pending</option>
-                                <option value="paid" <?php selected($registration->payment_status, 'paid'); ?>>Paid</option>
-                                <option value="partial" <?php selected($registration->payment_status, 'partial'); ?>>Partial</option>
+                                <?php sbr_select_options(array('pending' => 'Pending', 'paid' => 'Paid', 'partial' => 'Partial', 'completed' => 'Paid in Full'), $registration->payment_status); ?>
                             </select>
                         </p>
                         <p>
                             <label><strong>Registration Status:</strong></label><br>
                             <select id="registration_status" name="registration_status" style="width: 100%;">
-                                <option value="pending" <?php selected($registration->registration_status, 'pending'); ?>>Pending</option>
-                                <option value="confirmed" <?php selected($registration->registration_status, 'confirmed'); ?>>Confirmed</option>
-                                <option value="cancelled" <?php selected($registration->registration_status, 'cancelled'); ?>>Cancelled</option>
+                                <?php sbr_select_options(array('pending' => 'Pending', 'confirmed' => 'Confirmed', 'cancelled' => 'Cancelled', 'waitlisted' => 'Waitlisted', 'incomplete' => 'Incomplete'), $registration->registration_status); ?>
                             </select>
                         </p>
                     </div>
@@ -3458,6 +3448,18 @@ function sbr_generate_payment_link() {
         'link' => $completion_url,
         'message' => $message
     ));
+}
+
+// Print <option>s for a select. A current value that isn't in the list is kept
+// as an extra option, so saving the form never silently changes it.
+function sbr_select_options($options, $current) {
+    $current = (string) $current;
+    if (!array_key_exists($current, $options)) {
+        $options = array($current => ($current === '' ? '(not set)' : $current)) + $options;
+    }
+    foreach ($options as $value => $label) {
+        echo '<option value="' . esc_attr($value) . '"' . selected($current, (string) $value, false) . '>' . esc_html($label) . '</option>';
+    }
 }
 
 // Helper function to log audit trail
