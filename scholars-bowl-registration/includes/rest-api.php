@@ -228,7 +228,7 @@ class SBR_REST_API {
                 <p>Paste it into the scoring system: <strong>Admin → Website connection → API token</strong>, along with this site's address.</p>
             <?php endif; ?>
             <table class="form-table" role="presentation">
-                <tr><th scope="row">Status</th><td><?php echo $has_token ? 'Token active (created ' . esc_html($created) . ')' : 'No token. The API only answers administrators.'; ?></td></tr>
+                <tr><th scope="row">Status</th><td><?php echo $has_token ? ('Token active' . ($created ? ' (created ' . esc_html($created) . ')' : '')) : 'No token. The API only answers administrators.'; ?></td></tr>
                 <tr><th scope="row">Events</th><td><code><?php echo esc_html($base . '/events'); ?></code></td></tr>
                 <tr><th scope="row">Registrations</th><td><code><?php echo esc_html($base . '/registrations?event_id=ID'); ?></code></td></tr>
                 <tr><th scope="row">Header</th><td><code>X-SBR-Token: &lt;token&gt;</code></td></tr>
