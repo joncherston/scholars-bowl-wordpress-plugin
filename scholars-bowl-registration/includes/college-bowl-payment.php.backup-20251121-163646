@@ -1,0 +1,11 @@
+<?php
+if (!defined('ABSPATH')) exit;
+
+class SBR_College_Bowl_Payment {
+    private $table_name;
+    
+    public function __construct() {
+        global $wpdb;
+        $this->table_name = $wpdb->prefix . 'college_bowl_payments';
+        add_action('init', array($this, 'init'));
+    }
