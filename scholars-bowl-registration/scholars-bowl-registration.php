@@ -18,6 +18,10 @@ define('SBR_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SBR_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('SBR_VERSION', '1.0.6');
 
+// Read-only REST API for the scoring system (1.0.7).
+require_once SBR_PLUGIN_PATH . 'includes/rest-api.php';
+SBR_REST_API::init();
+
 class ScholarsBowlRegistration {
 
     public function __construct() {
