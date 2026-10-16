@@ -129,61 +129,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_status' && check_adm
     }
 }
 
-// Export function
-function export_registrations_csv($registrations) {
-    if (empty($registrations)) {
-        wp_die('No registrations to export.');
-    }
-
-    $filename = 'scholars_bowl_registrations_' . date('Y-m-d_H-i-s') . '.csv';
-
-    header('Content-Type: text/csv');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Pragma: no-cache');
-    header('Expires: 0');
-
-    $output = fopen('php://output', 'w');
-
-    // CSV headers
-    $headers = [
-        'ID', 'School Name', 'Contact Name', 'Contact Email', 'Contact Phone', 'Dietary Restrictions',
-        'Competing Students', 'Additional Students', 'Additional Adults', 'Coaches', 'Grade Level',
-        'Session Time', 'Total Amount', 'Amount Paid', 'Balance Due',
-        'Payment Status', 'Payment Method', 'Registration Status',
-        'Registration Date', 'Payment Notes'
-    ];
-    fputcsv($output, $headers);
-
-    // CSV data
-    foreach ($registrations as $reg) {
-        $row = [
-            $reg->id,
-            $reg->school_name,
-            $reg->contact_name,
-            $reg->contact_email,
-            $reg->contact_phone,
-            $reg->dietary_restrictions ?: 'None',
-            $reg->competing_students,
-            $reg->additional_students ?? 0,
-            $reg->additional_adults ?? 0,
-            $reg->coaches,
-            $reg->grade_level,
-            $reg->session_time,
-            number_format($reg->total_amount, 2),
-            number_format($reg->amount_paid ?: 0, 2),
-            number_format($reg->balance_due ?: 0, 2),
-            $reg->payment_status,
-            $reg->payment_method,
-            $reg->registration_status ?: 'pending',
-            $reg->registration_date,
-            $reg->payment_notes ?: ''
-        ];
-        fputcsv($output, $row);
-    }
-
-    fclose($output);
-    exit;
-}
+// The export function lives in export-csv.php (1.0.7) so it can run before any page output.
+require_once SBR_PLUGIN_PATH . 'includes/export-csv.php';
 
 // Handle export requests
 if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {

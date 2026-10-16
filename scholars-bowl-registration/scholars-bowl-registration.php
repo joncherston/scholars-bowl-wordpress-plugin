@@ -21,6 +21,8 @@ define('SBR_VERSION', '1.0.6');
 // Read-only REST API for the scoring system (1.0.7).
 require_once SBR_PLUGIN_PATH . 'includes/rest-api.php';
 SBR_REST_API::init();
+// Registrations CSV export, run before any admin page output (1.0.7).
+require_once SBR_PLUGIN_PATH . 'includes/export-csv.php';
 
 class ScholarsBowlRegistration {
 
