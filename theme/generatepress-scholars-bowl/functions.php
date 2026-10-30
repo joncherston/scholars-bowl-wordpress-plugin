@@ -6,6 +6,28 @@
  */
 
 /**
+ * Self-hosted brand fonts (2.1.0): Libre Franklin (headings, numbers) and Mulish (text),
+ * SIL Open Font License, files in fonts/. No requests to Google Fonts.
+ * The Scholars' Bowl Registration plugin uses the same 'suscc-fonts' handle, so they load once.
+ */
+function sb_enqueue_brand_fonts() {
+	wp_register_style( 'suscc-fonts', get_stylesheet_directory_uri() . '/fonts/fonts.css', array(), wp_get_theme()->get( 'Version' ) );
+	wp_enqueue_style( 'suscc-fonts' );
+}
+add_action( 'wp_enqueue_scripts', 'sb_enqueue_brand_fonts', 5 );
+
+/**
+ * Preload the two font files every page uses, so text doesn't reflow when they arrive.
+ */
+function sb_preload_brand_fonts() {
+	$base = get_stylesheet_directory_uri() . '/fonts/';
+	foreach ( array( 'mulish-latin-400-normal.woff2', 'libre-franklin-latin-700-normal.woff2' ) as $file ) {
+		printf( '<link rel="preload" href="%s" as="font" type="font/woff2" crossorigin>' . "\n", esc_url( $base . $file ) );
+	}
+}
+add_action( 'wp_head', 'sb_preload_brand_fonts', 2 );
+
+/**
  * Register the custom logo meta box for pages
  */
 function sb_add_custom_logo_meta_box() {

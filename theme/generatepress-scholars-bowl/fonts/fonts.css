@@ -1,0 +1,50 @@
+/* Libre Franklin (headings, numbers) and Mulish (body), self-hosted. SIL Open Font License 1.1: see OFL.txt. */
+@font-face {
+  font-family: 'Libre Franklin';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(./libre-franklin-latin-600-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Libre Franklin';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./libre-franklin-latin-700-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Libre Franklin';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 800;
+  src: url(./libre-franklin-latin-800-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Mulish';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./mulish-latin-400-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Mulish';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(./mulish-latin-600-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Mulish';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(./mulish-latin-700-normal.woff2) format('woff2');
+}
+@font-face {
+  font-family: 'Mulish';
+  font-style: italic;
+  font-display: swap;
+  font-weight: 400;
+  src: url(./mulish-latin-400-italic.woff2) format('woff2');
+}

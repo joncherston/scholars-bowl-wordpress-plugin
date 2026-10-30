@@ -2,7 +2,7 @@
 Theme Name: GeneratePress - Scholars Bowl
 Description: Custom child theme for GeneratePress
 Template: generatepress
-Version: 2.0.0
+Version: 2.1.0
 Author: Jonathan Herston
 Text Domain: generatepress-scholars-bowl
 */
@@ -10,96 +10,333 @@ Text Domain: generatepress-scholars-bowl
 /* Import parent theme styles */
 @import url("../generatepress/style.css");
 
-/* CSS Variables for consistent design */
+/* 2.1.0: matches the scoring app (scoring.suscholarsbowl.com): SUSCC navy/blue, gold only on
+   navy, Libre Franklin for headings and numbers, Mulish for text (self-hosted, see fonts/).
+   The 1.5-second page fade-in is gone: it hid content and ignored reduced-motion settings. */
+
 :root {
-    --primary-color: #27428e;
-    --primary-dark: #005a87;
-    --secondary-color: #f8fafe;
-    --accent-color: #e8f4f8;
-    --text-color: #333;
-    --border-color: #ddd;
-    --success-color: #46b450;
-    --warning-color: #856404;
-    --warning-bg: #fff3cd;
-    --danger-color: #dc3545;
-    --light-bg: #f9f9f9;
+    --suscc-blue: #24408f;
+    --suscc-blue-dark: #1b3170;
+    --suscc-navy: #122047;
+    --suscc-gold: #fad347;
+    --bg: #f3f5f9;
+    --surface: #fff;
+    --surface-2: #f8f9fc;
+    --text: #1b2233;
+    --muted: #535c6e;
+    --border: #d3d8e3;
+    --field-border: #6f7889;
+    --focus: #1a5fff;
+    --danger: #b42318;
+    --success: #157a35;
+    --warning: #8a5a00;
+    --radius: 8px;
+    --shadow: 0 1px 2px rgb(18 32 71 / 8%), 0 2px 8px rgb(18 32 71 / 6%);
+    --font-body: 'Mulish', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --font-head: 'Libre Franklin', 'Mulish', system-ui, sans-serif;
+
+    /* Names used by 2.0.0, kept for any custom CSS that refers to them */
+    --primary-color: var(--suscc-blue);
+    --primary-dark: var(--suscc-blue-dark);
+    --secondary-color: var(--surface-2);
+    --accent-color: #e9effc;
+    --text-color: var(--text);
+    --border-color: var(--border);
+    --success-color: var(--success);
+    --warning-color: var(--warning);
+    --warning-bg: #fff6dd;
+    --danger-color: var(--danger);
+    --light-bg: var(--surface-2);
     --white: #ffffff;
-    --shadow: 0 2px 10px rgba(0,0,0,0.1);
-    --radius: 6px;
+    --radius-sm: 5px;
     --mobile-breakpoint: 768px;
     --tablet-breakpoint: 1024px;
 }
 
-/* Fade in effect */
-/* --- Simple 1-Second Page Fade-In --- */
+/* ---------- base ---------- */
 
 body {
-    /* Defines the animation: name, duration, and timing function */
-    animation: fadeInAnimation 1.5s ease-in-out;
-
-    /* Keeps the page visible after the animation completes */
-    animation-fill-mode: forwards;
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.6;
 }
 
-@keyframes fadeInAnimation {
-    /* The starting point of the animation (completely transparent) */
-    from {
-        opacity: 0;
-    }
-    /* The ending point of the animation (fully visible) */
-    to {
-        opacity: 1;
-    }
+h1, h2, h3, h4, h5, h6,
+.entry-title,
+.site-title {
+    font-family: var(--font-head);
+    color: var(--suscc-navy);
+    line-height: 1.2;
 }
-/* Header Styling */
-.page-template-default .site-header {
-   background-color: #FFFFFF;
-   border-bottom: solid;
-   border-color: #27428e;
-   border-width: .25em;
+h1 { font-weight: 800; }
+h2, h3 { font-weight: 700; }
+
+a {
+    color: var(--suscc-blue);
 }
-/* Container Styling */
-.page-template-default .inside-header.grid-container {
-   border-top: 0;
-   border-bottom: solid;
-   border-color: #27428e;
-   border-width: .25em;
+a:hover,
+a:focus {
+    color: var(--suscc-blue-dark);
 }
-/* Content Section Customizations */
-.page-template-default .grid-container {
-   max-width: 100%;
-   border-top: solid;
-   border-width: 1em;
-   border-color: #fdd542;
+.entry-content a:not(.button):not(.wp-block-button__link) {
+    text-decoration: underline;
+    text-underline-offset: 2px;
 }
-/* Total Section Syling */
-button.sbr-submit-btn {
-   background-color: #005a87;
+
+:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
 }
-.form-section.cost-summary.loaded {
-   border-color: #005a87;
+
+.screen-reader-text:focus,
+.skip-link:focus {
+    background: #fff;
+    color: var(--suscc-navy);
+    outline: 3px solid var(--focus);
+    padding: 12px 16px;
+    z-index: 100000;
 }
-.form-section.cost-summary.loaded .total-cost {
-   border-top: solid;
-   border-top-color: #005a87;
-   color: #005a87
+
+/* ---------- header and navigation ---------- */
+
+.site-header {
+    background-color: #fff;
+    border-bottom: 8px solid var(--suscc-navy);
+    position: relative;
 }
-.form-section.cost-summary.loaded .payment-amount {
-   color: #005a87;
+/* a thin gold rule set inside the navy band */
+.site-header::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -5px;
+    height: 2px;
+    background: var(--suscc-gold);
+    pointer-events: none;
 }
-/* Content Section Bottom Border Styling */
-.page-template-default .content-area {
-   max-width: 100%;
-   border-bottom: solid;
-   border-color: #27428e;
-   border-bottom-width: .5em;
+.inside-header {
+    padding-top: 16px;
+    padding-bottom: 16px;
 }
-/* Remove Page Name for registration page* */
+.main-title a,
+.site-title a {
+    color: var(--suscc-navy);
+}
+.site-description {
+    color: var(--muted);
+}
+
+.main-navigation,
+.main-navigation ul ul {
+    background-color: transparent;
+}
+.main-navigation ul ul {
+    background-color: #fff;
+    box-shadow: var(--shadow);
+}
+.main-navigation .main-nav ul li a,
+.main-navigation .menu-toggle,
+.main-navigation .menu-bar-items {
+    color: var(--suscc-navy);
+    font-family: var(--font-head);
+    font-weight: 700;
+}
+.main-navigation .main-nav ul li:not([class*="current-menu-"]):hover > a,
+.main-navigation .main-nav ul li:not([class*="current-menu-"]):focus > a,
+.main-navigation .main-nav ul li.sfHover:not([class*="current-menu-"]) > a {
+    color: var(--suscc-blue);
+    background-color: transparent;
+    text-decoration: underline;
+    text-underline-offset: 6px;
+}
+.main-navigation .main-nav ul li[class*="current-menu-"] > a {
+    color: var(--suscc-blue);
+    background-color: transparent;
+    text-decoration: underline;
+    text-decoration-thickness: 3px;
+    text-underline-offset: 6px;
+}
+.main-navigation .main-nav ul li a:focus-visible {
+    outline-offset: -3px;
+}
+
+/* ---------- content ---------- */
+
+.site-content {
+    padding-top: 28px;
+    padding-bottom: 40px;
+}
+.separate-containers .inside-article,
+.separate-containers .comments-area,
+.separate-containers .page-header,
+.one-container .container,
+.separate-containers .paging-navigation,
+.inside-page-header {
+    background-color: var(--surface);
+}
+.separate-containers .inside-article {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+/* The registration and roster pages put their own cards on the page background */
+.separate-containers .inside-article:has(#scholars-bowl-registration),
+.separate-containers .inside-article:has(.sbr-payment-completion),
+.sbr-roster-page .inside-article {
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.entry-content table,
+.comment-content table {
+    border-collapse: collapse;
+    border: 1px solid var(--border);
+}
+.entry-content th,
+.entry-content td {
+    border: 1px solid var(--border);
+    padding: 8px 10px;
+}
+.entry-content th {
+    background: var(--surface-2);
+    font-family: var(--font-head);
+    color: var(--suscc-navy);
+}
+
+/* Default page template: the page title is not shown (unchanged from 2.0.0) */
 .page-template-default .entry-title {
-   display: none;
+    display: none;
 }
-.page-template-default .sbr-header {
-   border: solid;
-   border-width: .01em;
-   border-color: #0F0F0F;
+
+/* ---------- buttons and form fields ---------- */
+
+button,
+html input[type="button"],
+input[type="reset"],
+input[type="submit"],
+a.button,
+a.wp-block-button__link:not(.has-background) {
+    background-color: var(--suscc-blue);
+    border: 1px solid var(--suscc-blue);
+    border-radius: 5px;
+    color: #fff;
+    font-family: var(--font-body);
+    font-weight: 700;
+    min-height: 44px;
+}
+button:hover,
+html input[type="button"]:hover,
+input[type="reset"]:hover,
+input[type="submit"]:hover,
+a.button:hover,
+button:focus,
+html input[type="button"]:focus,
+input[type="reset"]:focus,
+input[type="submit"]:focus,
+a.button:focus,
+a.wp-block-button__link:not(.has-background):active,
+a.wp-block-button__link:not(.has-background):focus,
+a.wp-block-button__link:not(.has-background):hover {
+    background-color: var(--suscc-blue-dark);
+    border-color: var(--suscc-blue-dark);
+    color: #fff;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="url"],
+input[type="password"],
+input[type="search"],
+input[type="tel"],
+input[type="number"],
+textarea,
+select {
+    border: 1px solid var(--field-border);
+    border-radius: 5px;
+    background-color: #fff;
+    color: var(--text);
+    font-family: var(--font-body);
+}
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="url"]:focus,
+input[type="password"]:focus,
+input[type="search"]:focus,
+input[type="tel"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--suscc-blue);
+    background-color: #fff;
+    color: var(--text);
+    outline: 3px solid var(--focus);
+    outline-offset: 1px;
+}
+
+/* ---------- footer: navy, the place gold is allowed ---------- */
+
+.site-footer,
+.site-info {
+    background-color: var(--suscc-navy);
+    color: #fff;
+}
+/* a thin gold rule inside the navy footer, not touching the light page */
+.site-info {
+    background-image: linear-gradient(var(--suscc-gold), var(--suscc-gold));
+    background-repeat: no-repeat;
+    background-size: 100% 2px;
+    background-position: 0 6px;
+    font-size: 0.95rem;
+}
+.site-info a,
+.footer-widgets a,
+.site-footer a {
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.site-info a:hover,
+.site-info a:focus,
+.site-footer a:hover,
+.site-footer a:focus {
+    color: var(--suscc-gold);
+}
+.site-footer :focus-visible {
+    outline-color: var(--suscc-gold);
+}
+.footer-widgets {
+    background-color: var(--suscc-navy);
+    color: #fff;
+}
+.footer-widgets .widget-title {
+    color: var(--suscc-gold);
+}
+
+/* ---------- small screens ---------- */
+
+@media (max-width: 768px) {
+    body {
+        font-size: 16px;
+    }
+    .site-content {
+        padding-top: 16px;
+    }
+}
+
+/* No page-level animation. Anything that does move should stop for visitors who ask for it. */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
 }
