@@ -56,6 +56,75 @@ $defaults = array(
 
 // Use event data if editing, otherwise use defaults
 $data = $event ? (array) $event : $defaults;
+
+// Tournament structure (1.1.0)
+$sbr_config = $event ? SBR_Tournament::get_config($event) : SBR_Tournament::default_config();
+$sbr_awards = SBR_Tournament::api_awards($sbr_config);
+$sbr_roster_deadline_value = '';
+if (!empty($data['roster_deadline']) && strpos((string) $data['roster_deadline'], '0000') !== 0) {
+    $sbr_roster_deadline_value = date('Y-m-d\TH:i', strtotime($data['roster_deadline']));
+}
+
+/** One division's fields. $i is the form index ('__INDEX__' in the template). */
+if (!function_exists('sbr_division_fields')) :
+function sbr_division_fields($i, $d) {
+    $base = 'sbr_divisions[' . $i . ']';
+    $id = 'sbr_div_' . $i;
+    ob_start();
+    ?>
+    <fieldset class="sbr-division" data-index="<?php echo esc_attr($i); ?>">
+        <legend><span class="sbr-division-title"><?php echo esc_html($d['name'] !== '' ? $d['name'] : 'New division'); ?></span></legend>
+        <input type="hidden" name="<?php echo esc_attr($base); ?>[key]" value="<?php echo esc_attr($d['key']); ?>">
+        <div class="sbr-division-grid">
+            <p>
+                <label for="<?php echo esc_attr($id); ?>_name">Division name</label>
+                <input type="text" id="<?php echo esc_attr($id); ?>_name" name="<?php echo esc_attr($base); ?>[name]" value="<?php echo esc_attr($d['name']); ?>" class="regular-text sbr-division-name" maxlength="60">
+            </p>
+            <p>
+                <label for="<?php echo esc_attr($id); ?>_session">Session</label>
+                <select id="<?php echo esc_attr($id); ?>_session" name="<?php echo esc_attr($base); ?>[session]">
+                    <?php foreach (SBR_Tournament::SESSIONS as $k => $label): ?>
+                        <option value="<?php echo esc_attr($k); ?>" <?php selected($d['session'], $k); ?>><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </p>
+            <fieldset class="sbr-division-classes">
+                <legend>Classifications</legend>
+                <?php foreach (SBR_Tournament::CLASSIFICATIONS as $c): ?>
+                    <label class="sbr-check"><input type="checkbox" name="<?php echo esc_attr($base); ?>[classifications][]" value="<?php echo esc_attr($c); ?>" <?php checked(in_array($c, $d['classifications'], true)); ?>> <?php echo esc_html($c); ?></label>
+                <?php endforeach; ?>
+            </fieldset>
+            <p>
+                <label for="<?php echo esc_attr($id); ?>_format">Format</label>
+                <select id="<?php echo esc_attr($id); ?>_format" name="<?php echo esc_attr($base); ?>[format]" class="sbr-division-format">
+                    <?php foreach (SBR_Tournament::FORMATS as $k => $label): ?>
+                        <option value="<?php echo esc_attr($k); ?>" <?php selected($d['format'], $k); ?>><?php echo esc_html($label); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </p>
+            <p class="sbr-bracket-only">
+                <label for="<?php echo esc_attr($id); ?>_seeding">Seeding rounds</label>
+                <input type="number" id="<?php echo esc_attr($id); ?>_seeding" name="<?php echo esc_attr($base); ?>[seeding_rounds]" value="<?php echo esc_attr($d['seeding_rounds']); ?>" min="1" max="12" class="small-text">
+                <span class="description">Round-robin rounds before the bracket.</span>
+            </p>
+            <p class="sbr-bracket-only">
+                <label for="<?php echo esc_attr($id); ?>_size">Bracket size</label>
+                <select id="<?php echo esc_attr($id); ?>_size" name="<?php echo esc_attr($base); ?>[bracket_size]">
+                    <?php foreach (SBR_Tournament::BRACKET_SIZES as $n): ?>
+                        <option value="<?php echo intval($n); ?>" <?php selected(intval($d['bracket_size']), $n); ?>><?php echo intval($n); ?> teams</option>
+                    <?php endforeach; ?>
+                </select>
+            </p>
+            <p class="sbr-bracket-only">
+                <label class="sbr-check"><input type="checkbox" name="<?php echo esc_attr($base); ?>[third_place_game]" value="1" <?php checked(!empty($d['third_place_game'])); ?>> Third-place game</label>
+            </p>
+        </div>
+        <p><button type="button" class="button-link button-link-delete sbr-remove-division">Remove this division</button></p>
+    </fieldset>
+    <?php
+    return ob_get_clean();
+}
+endif;
 ?>
 
 <div class="wrap">
@@ -270,27 +339,55 @@ $data = $event ? (array) $event : $defaults;
             </tr>
 
             <tr>
-                <th scope="row">
-                    <label for="morning_classifications">Morning Session School Classifications</label>
-                </th>
+                <th scope="row">Classifications by session</th>
                 <td>
-                    <input type="text" id="morning_classifications" name="morning_classifications"
-                           value="<?php echo esc_attr($data['morning_classifications']); ?>"
-                           class="large-text" placeholder="e.g., Private,1A,2A,3A" />
-                    <p class="description">Comma-separated list of school classifications for morning session.</p>
+                    <p id="sbr-session-classes"><strong>Morning:</strong> <span data-session="morning"><?php echo esc_html($data['morning_classifications'] ?: '—'); ?></span><br>
+                       <strong>Afternoon:</strong> <span data-session="afternoon"><?php echo esc_html($data['afternoon_classifications'] ?: '—'); ?></span></p>
+                    <p class="description">Set by the divisions below. The registration form offers these classifications under each session.</p>
                 </td>
             </tr>
+        </table>
 
+        <h2>Tournament Structure</h2>
+        <p class="description" style="max-width: 760px;">The separate tournaments run on the day. Each classification can be in only one division.
+            The scoring system reads this; changing it after scoring has started does not change games already played.</p>
+        <?php if (!empty($sbr_config['synthesized'])): ?>
+            <div class="notice notice-info inline"><p>This event was created before divisions existed, so these are the standard divisions for its classifications. Saving the event stores them.</p></div>
+        <?php endif; ?>
+        <div id="sbr-divisions">
+            <?php foreach (array_values($sbr_config['divisions']) as $i => $division) {
+                echo sbr_division_fields($i, $division);
+            } ?>
+        </div>
+        <p><button type="button" class="button" id="sbr-add-division">Add a division</button></p>
+        <template id="sbr-division-template"><?php echo sbr_division_fields('__INDEX__', array('key' => '', 'name' => '', 'session' => 'morning', 'classifications' => array(), 'format' => 'bracket', 'seeding_rounds' => 3, 'bracket_size' => 4, 'third_place_game' => true)); ?></template>
+
+        <table class="form-table">
+            <h2>Awards</h2>
             <tr>
-                <th scope="row">
-                    <label for="afternoon_classifications">Afternoon Session School Classifications</label>
-                </th>
-                <td>
-                    <input type="text" id="afternoon_classifications" name="afternoon_classifications"
-                           value="<?php echo esc_attr($data['afternoon_classifications']); ?>"
-                           class="large-text" placeholder="e.g., 4A,5A,6A" />
-                    <p class="description">Comma-separated list of school classifications for afternoon session.</p>
-                </td>
+                <th scope="row"><label for="sbr_class_places">Places per classification</label></th>
+                <td><input type="number" id="sbr_class_places" name="sbr_awards[class_places]" value="<?php echo intval($sbr_awards['class_places']); ?>" min="0" max="10" class="small-text">
+                    <p class="description">Team awards in each classification (2 = 1st and 2nd place).</p></td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="sbr_division_places">Places per division</label></th>
+                <td><input type="number" id="sbr_division_places" name="sbr_awards[division_places]" value="<?php echo intval($sbr_awards['division_places']); ?>" min="0" max="10" class="small-text">
+                    <p class="description">Overall team awards in each division (1 = the division winner).</p></td>
+            </tr>
+            <tr>
+                <th scope="row"><label for="sbr_individual_places">All-tournament certificates</label></th>
+                <td><input type="number" id="sbr_individual_places" name="sbr_awards[individual_places]" value="<?php echo intval($sbr_awards['individual_places']); ?>" min="0" max="30" class="small-text">
+                    <p class="description">Top individual scorers recognized in each division.</p></td>
+            </tr>
+        </table>
+
+        <table class="form-table">
+            <h2>Team Rosters</h2>
+            <tr>
+                <th scope="row"><label for="roster_deadline">Roster deadline</label></th>
+                <td><input type="datetime-local" id="roster_deadline" name="roster_deadline" value="<?php echo esc_attr($sbr_roster_deadline_value); ?>">
+                    <p class="description">When coaches can no longer change their roster online (site time, <?php echo esc_html(wp_timezone_string()); ?>).
+                    Leave blank for 11:59 pm the day before the event. After it, changes are made at check-in.</p></td>
             </tr>
         </table>
 
@@ -580,6 +677,46 @@ jQuery(document).ready(function($) {
         }
     });
 
+    // Tournament structure: add/remove divisions, bracket fields, derived session lists
+    var $divisions = $('#sbr-divisions');
+    var nextIndex = $divisions.children('.sbr-division').length;
+    var order = ['Private', '1A', '2A', '3A', '4A', '5A', '6A', '7A'];
+    function refreshDivisions() {
+        var sessions = { morning: [], afternoon: [] };
+        $divisions.children('.sbr-division').each(function () {
+            var $d = $(this);
+            var bracket = $d.find('.sbr-division-format').val() === 'bracket';
+            $d.find('.sbr-bracket-only').toggle(bracket);
+            var name = $.trim($d.find('.sbr-division-name').val());
+            $d.find('.sbr-division-title').text(name || 'New division');
+            var session = $d.find('select[name$="[session]"]').val();
+            $d.find('input[type=checkbox][name$="[classifications][]"]:checked').each(function () {
+                sessions[session].push(this.value);
+            });
+        });
+        $.each(sessions, function (key, list) {
+            list.sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
+            $('#sbr-session-classes [data-session="' + key + '"]').text(list.length ? list.join(', ') : '—');
+        });
+    }
+    $divisions.on('change input', 'input, select', refreshDivisions);
+    $('#sbr-add-division').on('click', function () {
+        var html = $('#sbr-division-template').html().replace(/__INDEX__/g, String(nextIndex++));
+        var $new = $(html).appendTo($divisions);
+        refreshDivisions();
+        $new.find('.sbr-division-name').trigger('focus');
+    });
+    $divisions.on('click', '.sbr-remove-division', function () {
+        var $d = $(this).closest('.sbr-division');
+        var name = $.trim($d.find('.sbr-division-name').val()) || 'this division';
+        if (confirm('Remove ' + name + '?')) {
+            $d.remove();
+            refreshDivisions();
+            $('#sbr-add-division').trigger('focus');
+        }
+    });
+    refreshDivisions();
+
     // Validate minimum vs maximum students
     $('#min_students, #max_students').on('change', function() {
         var minStudents = parseInt($('#min_students').val()) || 1;
@@ -613,5 +750,44 @@ jQuery(document).ready(function($) {
 }
 .copy-shortcode {
     margin-left: 10px;
+}
+.sbr-division {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-left: 4px solid #24408f;
+    border-radius: 4px;
+    padding: 4px 16px 8px;
+    margin: 0 0 12px;
+    max-width: 960px;
+}
+.sbr-division > legend {
+    font-weight: 600;
+    font-size: 14px;
+    padding: 0 6px;
+}
+.sbr-division-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 4px 20px;
+    align-items: start;
+}
+.sbr-division-grid label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+.sbr-division-grid label.sbr-check,
+.sbr-division-classes label.sbr-check {
+    display: inline-block;
+    font-weight: 400;
+    margin-right: 10px;
+}
+.sbr-division-classes {
+    grid-column: 1 / -1;
+    margin: 4px 0;
+}
+.sbr-division-classes legend {
+    font-weight: 600;
+    margin-bottom: 4px;
 }
 </style>

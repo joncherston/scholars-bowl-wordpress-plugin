@@ -11,6 +11,9 @@
  *
  * Only an explicit list of columns is ever returned: no payment amounts, notes,
  * Stripe keys, or payment tokens. Payment information is limited to its status.
+ *
+ * 1.1.0 adds to each event: updated_at, timezone, roster_deadline, sessions, divisions,
+ * awards; and to each registration: students, roster_complete, roster_updated_at.
  */
 
 if (!defined('ABSPATH')) {
@@ -26,7 +29,9 @@ class SBR_REST_API {
     private static $event_columns = array(
         'id', 'event_name', 'event_slug', 'event_date', 'event_status',
         'morning_classifications', 'afternoon_classifications',
-        'morning_session_time', 'afternoon_session_time'
+        'morning_session_time', 'afternoon_session_time',
+        // 1.1.0
+        'tournament_config', 'roster_deadline', 'updated_at', 'created_date'
     );
     private static $registration_columns = array(
         'id', 'event_id', 'school_name', 'contact_name', 'contact_email', 'contact_phone',
@@ -119,7 +124,14 @@ class SBR_REST_API {
         $columns = self::existing_columns($table, self::$event_columns);
         $rows = $wpdb->get_results('SELECT ' . self::select_sql($columns) . " FROM {$table} ORDER BY event_date DESC, id DESC", ARRAY_A);
         $events = array();
+        $timezone = wp_timezone_string();
         foreach ((array) $rows as $r) {
+            $config = SBR_Tournament::get_config($r);
+            $deadline = SBR_Tournament::roster_deadline($r);
+            $updated = isset($r['updated_at']) ? SBR_Roster::iso_utc($r['updated_at']) : null;
+            if ($updated === null && isset($r['created_date'])) {
+                $updated = self::iso_local($r['created_date']);
+            }
             $events[] = array(
                 'id' => intval($r['id']),
                 'name' => isset($r['event_name']) ? $r['event_name'] : '',
@@ -130,9 +142,28 @@ class SBR_REST_API {
                 'afternoon_classifications' => self::split_list(isset($r['afternoon_classifications']) ? $r['afternoon_classifications'] : ''),
                 'morning_session_time' => isset($r['morning_session_time']) ? $r['morning_session_time'] : null,
                 'afternoon_session_time' => isset($r['afternoon_session_time']) ? $r['afternoon_session_time'] : null,
+                'updated_at' => $updated,
+                'timezone' => $timezone,
+                'roster_deadline' => $deadline ? $deadline->format('Y-m-d\TH:i:sP') : null,
+                'sessions' => SBR_Tournament::sessions((object) $r, $config),
+                'divisions' => SBR_Tournament::api_divisions($config),
+                'awards' => SBR_Tournament::api_awards($config),
             );
         }
         return self::respond(array('events' => $events));
+    }
+
+    /** A site-time MySQL datetime as ISO 8601 UTC, or null. */
+    private static function iso_local($value) {
+        if (empty($value) || strpos((string) $value, '0000') === 0) {
+            return null;
+        }
+        try {
+            $d = new DateTimeImmutable((string) $value, wp_timezone());
+        } catch (Exception $e) {
+            return null;
+        }
+        return gmdate('Y-m-d\TH:i:s\Z', $d->getTimestamp());
     }
 
     public static function get_registrations($request) {
@@ -151,7 +182,22 @@ class SBR_REST_API {
             return isset($r[$k]) && $r[$k] !== '' ? (string) $r[$k] : null;
         };
         $registrations = array();
+        $ids = array_map('intval', wp_list_pluck((array) $rows, 'id'));
+        $students = SBR_Roster::students_by_registration($ids);
+        $status = SBR_Roster::status_by_registration($ids);
         foreach ((array) $rows as $r) {
+            $list = isset($students[intval($r['id'])]) ? $students[intval($r['id'])] : array();
+            $student_out = array();
+            foreach ($list as $s) {
+                $student_out[] = array(
+                    'id' => intval($s->id),
+                    'first_name' => (string) $s->first_name,
+                    'last_name' => (string) $s->last_name,
+                    'grade' => $s->grade === null ? null : (string) intval($s->grade),
+                    'sort_order' => intval($s->sort_order),
+                );
+            }
+            $st = isset($status[intval($r['id'])]) ? $status[intval($r['id'])] : null;
             // The form stores classification in grade_level; some code paths use school_classification.
             $classification = $str($r, 'grade_level');
             if ($classification === null) {
@@ -175,6 +221,9 @@ class SBR_REST_API {
                 'is_test' => !empty($r['is_test_mode']),
                 'registration_date' => $str($r, 'registration_date'),
                 'last_updated' => $str($r, 'last_updated'),
+                'students' => $student_out,
+                'roster_complete' => SBR_Roster::is_complete((object) array('competing_students' => $int($r, 'competing_students')), $list),
+                'roster_updated_at' => $st ? SBR_Roster::iso_utc($st->roster_updated_at) : null,
             );
         }
         return self::respond(array('event_id' => $event_id, 'registrations' => $registrations));
@@ -218,7 +267,8 @@ class SBR_REST_API {
         <div class="wrap">
             <h1>Scholars' Bowl API Access</h1>
             <p>The scoring system can read events and registrations from this site through a read-only API.
-               It never returns payment amounts, notes, or Stripe keys.</p>
+               It returns contact details and team rosters (student names and grades), and never returns payment
+               amounts, notes, or Stripe keys. Keep the token private.</p>
             <?php if ($message): ?>
                 <div class="notice notice-success"><p><?php echo esc_html($message); ?></p></div>
             <?php endif; ?>
@@ -245,6 +295,7 @@ class SBR_REST_API {
                     <?php endif; ?>
                 </p>
             </form>
+            <?php SBR_Webhook::render_settings(); ?>
         </div>
         <?php
     }

@@ -38,6 +38,12 @@ if (!function_exists('export_registrations_csv')) {
             // Added in 1.0.7 at the end, so the earlier columns keep their positions.
             'Classification', 'Event ID', 'Event Name'
         ];
+        // Added in 1.1.0, also at the end: roster status and up to six students.
+        $roster_columns = class_exists('SBR_Roster');
+        if ($roster_columns) {
+            $headers = array_merge($headers, SBR_Roster::csv_headers());
+            $students = SBR_Roster::students_by_registration(wp_list_pluck($registrations, 'id'));
+        }
         fputcsv($output, $headers);
 
         global $wpdb;
@@ -73,6 +79,9 @@ if (!function_exists('export_registrations_csv')) {
                 $reg->event_id,
                 isset($event_names[$reg->event_id]) ? $event_names[$reg->event_id] : ''
             ];
+            if ($roster_columns) {
+                $row = array_merge($row, SBR_Roster::csv_values($reg, isset($students[$reg->id]) ? $students[$reg->id] : array()));
+            }
             fputcsv($output, $row);
         }
 
@@ -104,6 +113,7 @@ function sbr_maybe_export_registrations_csv() {
     if (!current_user_can('manage_options')) {
         return;
     }
+    check_admin_referer('sbr_export_csv');
     export_registrations_csv(sbr_registrations_for_export());
 }
 add_action('admin_init', 'sbr_maybe_export_registrations_csv');

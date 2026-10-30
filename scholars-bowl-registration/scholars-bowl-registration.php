@@ -3,7 +3,7 @@
  * Plugin Name: Scholars' Bowl Registration System
  * Plugin URI: https://suscholarsbowl.com
  * Description: Complete registration system for Scholars' Bowl competitions with payment processing and admin management.
- * Version: 1.0.7
+ * Version: 1.1.0
  * Author: Scholars' Bowl Team
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -16,13 +16,20 @@ if (!defined('ABSPATH')) {
 
 define('SBR_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('SBR_PLUGIN_PATH', plugin_dir_path(__FILE__));
-define('SBR_VERSION', '1.0.7');
+define('SBR_VERSION', '1.1.0');
 
 // Read-only REST API for the scoring system (1.0.7).
 require_once SBR_PLUGIN_PATH . 'includes/rest-api.php';
 SBR_REST_API::init();
 // Registrations CSV export, run before any admin page output (1.0.7).
 require_once SBR_PLUGIN_PATH . 'includes/export-csv.php';
+// 1.1.0: database upgrades, tournament structure, team rosters, scoring app notifications.
+require_once SBR_PLUGIN_PATH . 'includes/schema.php';
+require_once SBR_PLUGIN_PATH . 'includes/tournament.php';
+require_once SBR_PLUGIN_PATH . 'includes/roster.php';
+require_once SBR_PLUGIN_PATH . 'includes/webhook.php';
+SBR_Schema::init();
+SBR_Roster::init();
 
 class ScholarsBowlRegistration {
 
@@ -73,10 +80,12 @@ class ScholarsBowlRegistration {
         $this->create_database_table();
         $this->set_default_options();
         $this->create_default_event();
+        delete_transient('sbr_upgrade_retry_wait');
+        SBR_Schema::maybe_upgrade();
     }
 
     public function deactivate() {
-        // Clean up if needed
+        wp_clear_scheduled_hook('sbr_roster_reminders');
     }
 
     public function create_database_table() {
@@ -443,7 +452,12 @@ KEY blocked (blocked)
 
     public function enqueue_scripts() {
         wp_enqueue_script('sbr-frontend', SBR_PLUGIN_URL . 'assets/frontend.js', array('jquery'), SBR_VERSION, true);
-        wp_enqueue_style('sbr-frontend', SBR_PLUGIN_URL . 'assets/frontend.css', array(), SBR_VERSION);
+        // Self-hosted Libre Franklin + Mulish. The child theme registers the same handle; whichever
+        // registers first is used, so the fonts load once.
+        if (!wp_style_is('suscc-fonts', 'registered')) {
+            wp_register_style('suscc-fonts', SBR_PLUGIN_URL . 'assets/fonts/fonts.css', array(), SBR_VERSION);
+        }
+        wp_enqueue_style('sbr-frontend', SBR_PLUGIN_URL . 'assets/frontend.css', array('suscc-fonts'), SBR_VERSION);
 
         // Get Stripe key (global by default, event-specific override if available)
         $stripe_key = $this->get_active_stripe_publishable_key();
@@ -705,9 +719,6 @@ KEY blocked (blocked)
             return;
         }
 
-        // Log the full POST data for debugging
-        error_log('SBR: Save Event POST data: ' . print_r($_POST, true));
-
         global $wpdb;
         $events_table = $wpdb->prefix . 'scholars_bowl_events';
 
@@ -742,6 +753,39 @@ KEY blocked (blocked)
             return;
         }
 
+        // Tournament structure (1.1.0): divisions decide the morning/afternoon classification lists.
+        $tournament = null;
+        $morning_classifications = sanitize_text_field($_POST['morning_classifications'] ?? '');
+        $afternoon_classifications = sanitize_text_field($_POST['afternoon_classifications'] ?? '');
+        if (isset($_POST['sbr_divisions']) && is_array($_POST['sbr_divisions'])) {
+            $normalized = SBR_Tournament::normalize(array(
+                'divisions' => wp_unslash($_POST['sbr_divisions']),
+                'awards' => isset($_POST['sbr_awards']) && is_array($_POST['sbr_awards']) ? wp_unslash($_POST['sbr_awards']) : array(),
+            ));
+            if ($normalized['errors']) {
+                echo '<div class="notice notice-error"><p><strong>The event was not saved. Please fix the tournament structure:</strong></p><ul style="list-style: disc; margin-left: 2em;">';
+                foreach ($normalized['errors'] as $error) {
+                    echo '<li>' . esc_html($error) . '</li>';
+                }
+                echo '</ul></div>';
+                return;
+            }
+            $tournament = $normalized['config'];
+            $derived = SBR_Tournament::derive_session_classifications($tournament);
+            $morning_classifications = $derived['morning'];
+            $afternoon_classifications = $derived['afternoon'];
+        }
+        $roster_deadline = null;
+        if (!empty($_POST['roster_deadline'])) {
+            $raw_deadline = sanitize_text_field(wp_unslash($_POST['roster_deadline']));
+            $parsed_deadline = DateTime::createFromFormat('Y-m-d\TH:i', $raw_deadline, wp_timezone());
+            if (!$parsed_deadline) {
+                echo '<div class="notice notice-error"><p>The roster deadline is not a valid date and time. The event was not saved.</p></div>';
+                return;
+            }
+            $roster_deadline = $parsed_deadline->format('Y-m-d H:i:00');
+        }
+
         $event_data = array(
             'event_name' => wp_strip_all_tags($_POST['event_name']),
             'event_slug' => sanitize_title($_POST['event_slug']),
@@ -759,8 +803,8 @@ KEY blocked (blocked)
             'free_coaches' => intval($_POST['free_coaches']),
             'morning_session_time' => sanitize_text_field($_POST['morning_session_time']),
             'afternoon_session_time' => sanitize_text_field($_POST['afternoon_session_time']),
-            'morning_classifications' => sanitize_text_field($_POST['morning_classifications']),
-            'afternoon_classifications' => sanitize_text_field($_POST['afternoon_classifications']),
+            'morning_classifications' => $morning_classifications,
+            'afternoon_classifications' => $afternoon_classifications,
             'organization_name' => sanitize_text_field($_POST['organization_name']),
             'organizer_name' => sanitize_text_field($_POST['organizer_name']),
             'organizer_email' => sanitize_email($_POST['organizer_email']),
@@ -779,6 +823,18 @@ KEY blocked (blocked)
             'event_status' => sanitize_text_field($_POST['event_status'])
         );
 
+        // 1.1.0 columns, written only where the upgrade has added them.
+        $extra = array();
+        $extra_format = array();
+        if (SBR_Schema::has_column($events_table, 'tournament_config') && $tournament !== null) {
+            $extra['tournament_config'] = wp_json_encode($tournament, JSON_UNESCAPED_UNICODE);
+            $extra_format[] = '%s';
+        }
+        if (SBR_Schema::has_column($events_table, 'roster_deadline')) {
+            $extra['roster_deadline'] = $roster_deadline;
+            $extra_format[] = '%s';
+        }
+
         $result = false;
         $message = '';
         $is_update = false;
@@ -790,11 +846,6 @@ KEY blocked (blocked)
 
             // Get current event data for comparison
             $current_event = $wpdb->get_row($wpdb->prepare("SELECT * FROM $events_table WHERE id = %d", $event_id));
-            error_log('SBR: Current event data: ' . print_r($current_event, true));
-
-            // Log the update attempt
-            error_log('SBR: Attempting to update event ID: ' . $event_id);
-            error_log('SBR: New update data: ' . print_r($event_data, true));
 
             // Check for duplicate slug (excluding current event)
             $existing = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $events_table WHERE event_slug = %s AND id != %d", $event_data['event_slug'], $event_id));
@@ -812,6 +863,8 @@ KEY blocked (blocked)
                 echo '<div class="notice notice-error"><p>Internal error: Data format mismatch. Please contact support.</p></div>';
                 return;
             }
+            $event_data += $extra;
+            $data_format = array_merge($data_format, $extra_format);
 
             $result = $wpdb->update(
                 $events_table,
@@ -825,12 +878,8 @@ KEY blocked (blocked)
             error_log('SBR: Update result: ' . ($result !== false ? $result : 'FALSE'));
             if ($wpdb->last_error) {
                 error_log('SBR: Update error: ' . $wpdb->last_error);
-                error_log('SBR: Last query: ' . $wpdb->last_query);
             }
 
-            // Verify the update worked by fetching the updated data
-            $updated_event = $wpdb->get_row($wpdb->prepare("SELECT * FROM $events_table WHERE id = %d", $event_id));
-            error_log('SBR: Updated event data: ' . print_r($updated_event, true));
 
             $message = 'Event updated successfully!';
         } else {
@@ -850,12 +899,14 @@ KEY blocked (blocked)
                 echo '<div class="notice notice-error"><p>Internal error: Data format mismatch. Please contact support.</p></div>';
                 return;
             }
+            $event_data += $extra;
+            $data_format = array_merge($data_format, $extra_format);
 
             $result = $wpdb->insert($events_table, $event_data, $data_format);
+            $event_id = $result !== false ? intval($wpdb->insert_id) : 0;
 
             if ($wpdb->last_error) {
                 error_log('SBR: Insert error: ' . $wpdb->last_error);
-                error_log('SBR: Last query: ' . $wpdb->last_query);
             }
 
             $message = 'Event created successfully!';
@@ -871,6 +922,12 @@ KEY blocked (blocked)
             }
             // Clear the setup flag if this was the first event
             delete_option('sbr_needs_setup');
+            if ($result > 0 && !empty($event_id)) {
+                if (SBR_Schema::has_column($events_table, 'updated_at')) {
+                    $wpdb->update($events_table, array('updated_at' => gmdate('Y-m-d H:i:s')), array('id' => $event_id), array('%s'), array('%d'));
+                }
+                SBR_Webhook::notify('event.saved', $event_id);
+            }
         } else {
             $error_message = $wpdb->last_error ?: 'Unknown database error occurred';
             $additional_info = '';
@@ -884,7 +941,6 @@ KEY blocked (blocked)
 
             echo '<div class="notice notice-error"><p>Database error: ' . esc_html($error_message) . $additional_info . '</p></div>';
             error_log('SBR Save Event Error: ' . $error_message);
-            error_log('SBR Last query: ' . ($wpdb->last_query ?: 'No query recorded'));
 
             // Check table structure
             $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$events_table'") == $events_table;
@@ -964,10 +1020,19 @@ KEY blocked (blocked)
     public function handle_registration_submission() {
         check_ajax_referer('sbr_nonce', 'nonce');
 
-        // Validate submission for spam
-        $spam_check = $this->validate_submission_for_spam($_POST);
+        // Validate submission for spam. Student names are left out of the spam log.
+        $spam_input = $_POST;
+        unset($spam_input['students']);
+        $spam_check = $this->validate_submission_for_spam($spam_input);
         if ($spam_check['blocked']) {
             wp_send_json_error($spam_check['reason']);
+            return;
+        }
+
+        // Optional roster (1.1.0). Stored separately; never part of pricing or the totals below.
+        $roster = SBR_Roster::parse_rows(isset($_POST['students']) && is_array($_POST['students']) ? wp_unslash($_POST['students']) : array());
+        if ($roster['errors']) {
+            wp_send_json_error(implode(' ', array_values($roster['errors'])));
             return;
         }
 
@@ -995,6 +1060,26 @@ KEY blocked (blocked)
             $event = $wpdb->get_row($wpdb->prepare("SELECT * FROM $events_table WHERE id = %d", $event_id));
         } else {
             $event = null;
+        }
+
+        // Server-side checks of what the form already limits (1.1.0). They reject tampered or
+        // incomplete submissions only; they don't change the price of a valid one.
+        $invalid = $this->registration_submission_error($event, array(
+            'school_name' => $school_name,
+            'contact_name' => $contact_name,
+            'contact_email' => $contact_email,
+            'contact_phone' => $contact_phone,
+            'competing_students' => $competing_students,
+            'additional_students' => $additional_students,
+            'additional_adults' => $additional_adults,
+            'coaches' => $coaches,
+            'grade_level' => $grade_level,
+            'payment_option' => $payment_option,
+            'payment_method' => $payment_method,
+        ));
+        if ($invalid) {
+            wp_send_json_error($invalid);
+            return;
         }
 
         if ($event) {
@@ -1071,6 +1156,7 @@ KEY blocked (blocked)
                     }
                 }
                 if ($same) {
+                    SBR_Roster::save($existing_registration->id, $roster['students']);
                     wp_send_json_success(array(
                         'registration_id' => $existing_registration->id,
                         'amount' => $deposit_amount,
@@ -1090,6 +1176,10 @@ KEY blocked (blocked)
 
         if ($result !== false) {
             $registration_id = $wpdb->insert_id;
+            if ($roster['students']) {
+                SBR_Roster::save($registration_id, $roster['students'], false);
+            }
+            SBR_Webhook::notify('registration.saved', $event_id, $registration_id);
 
             if ($payment_method === 'check' || $payment_method === 'cash') {
                 // Generate payment completion link for check/cash payments if payment option is deposit
@@ -1119,6 +1209,57 @@ KEY blocked (blocked)
         }
     }
 
+    /**
+     * Why a public registration submission can't be accepted, or '' if it can (1.1.0).
+     * Mirrors the limits the form itself offers.
+     */
+    public function registration_submission_error($event, $f) {
+        if (!$event) {
+            return 'This event was not found. Please reload the page and try again.';
+        }
+        if (isset($event->event_status) && $event->event_status !== 'active') {
+            return 'Registration for this event is closed.';
+        }
+        $deadline = !empty($event->registration_deadline) ? $event->registration_deadline : get_option('sbr_default_registration_deadline');
+        if ($deadline && current_time('Y-m-d') > $deadline) {
+            return 'Registration for this event has closed.';
+        }
+        foreach (array('school_name' => 'school name', 'contact_name' => 'contact name', 'contact_phone' => 'phone number') as $key => $label) {
+            if (trim((string) $f[$key]) === '') {
+                return 'Please enter the ' . $label . '.';
+            }
+        }
+        if (!is_email($f['contact_email'])) {
+            return 'Please enter a valid email address.';
+        }
+        $min = isset($event->min_students) ? intval($event->min_students) : 1;
+        $max = isset($event->max_students) ? intval($event->max_students) : 6;
+        if ($f['competing_students'] < $min || $f['competing_students'] > $max) {
+            return 'Please choose the number of competing students.';
+        }
+        $max_additional = isset($event->max_additional) ? intval($event->max_additional) : 4;
+        if ($f['additional_students'] < 0 || $f['additional_adults'] < 0 || $f['additional_students'] + $f['additional_adults'] > $max_additional) {
+            return 'Additional students and adults together cannot exceed ' . $max_additional . '.';
+        }
+        if ($f['coaches'] < 0 || $f['coaches'] > 4) {
+            return 'Please choose the number of coaches (0 to 4).';
+        }
+        $classifications = array_merge(
+            SBR_Tournament::split_list($event->morning_classifications),
+            SBR_Tournament::split_list($event->afternoon_classifications)
+        );
+        if (!in_array($f['grade_level'], $classifications, true)) {
+            return 'Please choose your school classification.';
+        }
+        if (!in_array($f['payment_option'], array('deposit', 'full'), true)) {
+            return 'Please choose a payment type.';
+        }
+        if (!in_array($f['payment_method'], array('credit', 'check', 'cash'), true)) {
+            return 'Please choose a payment method.';
+        }
+        return '';
+    }
+
     public function process_stripe_payment() {
         check_ajax_referer('sbr_nonce', 'nonce');
 
@@ -1136,6 +1277,14 @@ KEY blocked (blocked)
 
         if (!$registration) {
             wp_send_json_error('Registration not found.');
+            return;
+        }
+
+        // Only a card registration that hasn't been paid yet can be charged here (1.1.0).
+        // Before, any registration ID could be sent, which could overwrite the payment
+        // record of a registration that was already paid.
+        if ($registration->payment_method !== 'credit' || !in_array($registration->payment_status, array('processing', 'failed'), true)) {
+            wp_send_json_error('This registration is not waiting for a card payment. Please contact the tournament organizer.');
             return;
         }
 
@@ -1189,6 +1338,7 @@ KEY blocked (blocked)
                 }
             }
 
+            SBR_Webhook::notify('registration.saved', $registration->event_id, $registration_id);
             $this->send_confirmation_email($registration_id, 'stripe');
             wp_send_json_success(array('message' => 'Payment successful! Check your email for confirmation.'));
         } else {
@@ -1203,6 +1353,7 @@ KEY blocked (blocked)
                 array('%s', '%s'),
                 array('%d')
             );
+            SBR_Webhook::notify('registration.saved', $registration->event_id, $registration_id);
 
             wp_send_json_error($result['error']);
         }
@@ -1302,6 +1453,9 @@ KEY blocked (blocked)
                 }
             }
         }
+
+        // Team roster link and status (1.1.0)
+        $message .= SBR_Roster::confirmation_email_section($registration_id);
 
         $message .= "\nIf you have any questions, please contact us at $organizer_email.\n\n";
         $message .= "Thank you,\nScholars' Bowl Team";
@@ -1417,7 +1571,8 @@ KEY blocked (blocked)
                 status.innerHTML = '<span style="color: #0073aa;">🔧 Running manual table creation test...</span>';
 
                 jQuery.post(ajaxurl, {
-                    action: 'sbr_manual_create_tables'
+                    action: 'sbr_manual_create_tables',
+                    nonce: '<?php echo wp_create_nonce('sbr_setup'); ?>'
                 })
                 .done(function(response) {
                     console.log('Manual creation response:', response);
@@ -1544,6 +1699,7 @@ KEY blocked (blocked)
     }
 
     public function ajax_manual_create_tables() {
+        check_ajax_referer('sbr_setup', 'nonce');
         if (!current_user_can('manage_options')) {
             wp_send_json_error('Insufficient permissions');
             return;
@@ -2590,6 +2746,7 @@ KEY blocked (blocked)
 
             // Update registration
             $this->update_registration_payment_status($token_data->registration_id, 'completed');
+            SBR_Webhook::notify('registration.saved', 0, $token_data->registration_id);
 
             // Send completion email
             $this->send_payment_completion_email($token_data->registration_id);
@@ -2993,6 +3150,13 @@ KEY blocked (blocked)
 
         // Mark old processing registrations as failed (over 30 minutes)
         $processing_cutoff = date('Y-m-d H:i:s', strtotime('-30 minutes'));
+        $timed_out = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, event_id FROM $table_name WHERE payment_status = 'processing' AND registration_date < %s",
+            $processing_cutoff
+        ));
+        foreach ((array) $timed_out as $row) {
+            SBR_Webhook::notify('registration.saved', $row->event_id, $row->id);
+        }
         $wpdb->query($wpdb->prepare(
             "UPDATE $table_name
              SET payment_status = 'failed',
@@ -3007,7 +3171,8 @@ KEY blocked (blocked)
 
 }
 
-new ScholarsBowlRegistration();
+// One shared instance (admin pages reuse it through the $sbr_instance global).
+$GLOBALS['sbr_instance'] = new ScholarsBowlRegistration();
 // Add Test Mode Fixer submenu
 add_action('admin_menu', 'sbr_add_test_fixer_menu', 100);
 function sbr_add_test_fixer_menu() {
@@ -3124,6 +3289,7 @@ function sbr_toggle_test_mode() {
     );
     
     if ($result !== false) {
+        SBR_Webhook::notify('registration.saved', 0, $registration_id);
         wp_send_json_success(array(
             'message' => 'Test mode updated successfully',
             'is_test_mode' => $new_mode
@@ -3366,6 +3532,9 @@ function sbr_get_registration_details() {
     </div>
     <?php
     } // End if/else for mode
+
+    // Team roster (1.1.0): view, edit, and resend the roster link.
+    echo SBR_Roster::admin_panel_html($registration);
     
     $html = ob_get_clean();
     
@@ -3596,6 +3765,7 @@ function sbr_save_registration_edit() {
             }
         }
         
+        SBR_Webhook::notify('registration.saved', $current->event_id, $registration_id);
         wp_send_json_success(array('message' => 'Registration updated successfully'));
     } else {
         wp_send_json_error('Database update failed: ' . $wpdb->last_error);

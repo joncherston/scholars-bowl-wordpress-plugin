@@ -3,26 +3,30 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+global $wpdb;
+$table_name = $wpdb->prefix . 'scholars_bowl_registrations';
 
-// Handle test transaction deletion
+if (!current_user_can('manage_options')) {
+    wp_die('Insufficient permissions.');
+}
+
+// Handle test transaction deletion. (1.1.0: runs after $wpdb is set up; before, it failed.)
 if (isset($_GET['action']) && $_GET['action'] === 'delete_test' && isset($_GET['registration_id'])) {
     check_admin_referer('delete_test_registration_' . intval($_GET['registration_id']));
     
     $registration_id = intval($_GET['registration_id']);
     
     // Verify it's a test transaction before deleting
-    $is_test = $wpdb->get_var($wpdb->prepare("SELECT is_test_mode FROM $table_name WHERE id = %d", $registration_id));
+    $test_row = $wpdb->get_row($wpdb->prepare("SELECT is_test_mode, event_id FROM $table_name WHERE id = %d", $registration_id));
     
-    if ($is_test) {
+    if ($test_row && $test_row->is_test_mode) {
         $wpdb->delete($table_name, array('id' => $registration_id), array('%d'));
+        SBR_Webhook::notify('registration.saved', $test_row->event_id, $registration_id);
         echo '<div class="notice notice-success is-dismissible"><p>Test registration deleted successfully.</p></div>';
     } else {
         echo '<div class="notice notice-error"><p>Cannot delete: This is not a test transaction.</p></div>';
     }
 }
-
-global $wpdb;
-$table_name = $wpdb->prefix . 'scholars_bowl_registrations';
 
 // Handle payment status updates
 if (isset($_POST['action']) && $_POST['action'] === 'mark_as_paid' && check_admin_referer('sbr_mark_paid', 'sbr_nonce')) {
@@ -69,6 +73,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'mark_as_paid' && check_admi
             $sbr_instance = new ScholarsBowlRegistration();
         }
         $sbr_instance->send_payment_confirmation($registration_id, floatval($_POST['amount_paid']), $payment_notes);
+        SBR_Webhook::notify('registration.saved', 0, $registration_id);
 
         echo '<div class="notice notice-success"><p>Payment status updated successfully! Confirmation email sent.</p></div>';
     } else {
@@ -122,6 +127,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_status' && check_adm
             $sbr_instance = new ScholarsBowlRegistration();
         }
         $sbr_instance->send_status_change_notification($registration_id, $old_status, $new_status, $notes);
+        SBR_Webhook::notify('registration.saved', 0, $registration_id);
 
         echo '<div class="notice notice-success"><p>Registration status updated successfully! Notification email sent.</p></div>';
     } else {
@@ -132,10 +138,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'update_status' && check_adm
 // The export function lives in export-csv.php (1.0.7) so it can run before any page output.
 require_once SBR_PLUGIN_PATH . 'includes/export-csv.php';
 
-// Handle export requests
-if (isset($_GET['action']) && $_GET['action'] === 'export_csv') {
-    export_registrations_csv(sbr_registrations_for_export());
-}
+// Export requests are handled on admin_init in export-csv.php (with a nonce check since 1.1.0).
 
 // Handle filtering
 $where_conditions = [];
@@ -188,6 +191,9 @@ if (!empty($where_params)) {
 }
 
 $total_registrations = count($registrations);
+
+// Team rosters for the listed registrations (1.1.0)
+$sbr_students = SBR_Roster::students_by_registration(wp_list_pluck((array) $registrations, 'id'));
 $total_revenue = $wpdb->get_var("SELECT SUM(amount_paid) FROM $table_name WHERE payment_status = 'completed'");
 $pending_payments = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE payment_status = 'pending'");
 $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name WHERE balance_due > 0");
@@ -279,7 +285,7 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
             <button type="button" class="button button-primary" onclick="openAddRegistrationModal()" style="margin-right: 10px;">
                 <span class="dashicons dashicons-plus-alt" style="margin-top: 3px;"></span> Add New Registration
             </button>
-            <a href="<?php echo add_query_arg(['action' => 'export_csv'], $_SERVER['REQUEST_URI']); ?>"
+            <a href="<?php echo esc_url(wp_nonce_url(add_query_arg(['action' => 'export_csv'], wp_unslash($_SERVER['REQUEST_URI'])), 'sbr_export_csv')); ?>"
                class="button button-primary"><?php echo empty($_GET['event_filter']) ? 'Export to CSV' : 'Export This Event to CSV'; ?></a>
         </div>
 
@@ -321,6 +327,7 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
                     <th><?php echo sortable_header('contact_name', 'Contact', $current_orderby, $current_order); ?></th>
                     <th>Dietary</th>
                     <th>Students</th>
+                    <th>Roster</th>
                     <th>Additional<br><small>(S / A)</small></th>
                     <th>Coaches</th>
                     <th>School Classification</th>
@@ -361,8 +368,21 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
                                 <span style="color: #999;">None specified</span>
                             <?php endif; ?>
                         </td>
-                        <td><?php echo $registration->competing_students; ?></td>
-                        <td><?php echo ($registration->additional_students ?? 0) . " / " . ($registration->additional_adults ?? 0); ?></td>
+                        <td><?php echo intval($registration->competing_students); ?></td>
+                        <td class="sbr-roster-cell">
+                            <?php
+                            $sbr_list = isset($sbr_students[$registration->id]) ? $sbr_students[$registration->id] : array();
+                            echo SBR_Roster::badge_html($registration, $sbr_list);
+                            if ($sbr_list) {
+                                echo '<details class="sbr-roster-names"><summary>Names</summary><ol>';
+                                foreach ($sbr_list as $sbr_s) {
+                                    echo '<li>' . esc_html(trim($sbr_s->first_name . ' ' . $sbr_s->last_name)) . ($sbr_s->grade !== null ? ' <small>(' . intval($sbr_s->grade) . ')</small>' : '') . '</li>';
+                                }
+                                echo '</ol></details>';
+                            }
+                            ?>
+                        </td>
+                        <td><?php echo intval($registration->additional_students ?? 0) . " / " . intval($registration->additional_adults ?? 0); ?></td>
                         <td><?php echo $registration->coaches; ?></td>
                         <td><?php echo esc_html($registration->grade_level); ?></td>
                         <td>
@@ -371,7 +391,7 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
                             echo $registration->session_time === 'morning' ? ' (8:30 AM)' : ' (12:15 PM)';
                             ?>
                         </td>
-                        <td>
+                        <td class="sbr-amount-cell">
                             <strong>Total: $<?php echo number_format($registration->total_amount, 2); ?></strong><br>
                             <small>
                                 <?php
@@ -677,6 +697,21 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
     .tablenav {
         margin: 20px 0;
     }
+
+    /* Team roster (1.1.0) */
+    .sbr-roster-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid; white-space: nowrap; }
+    .sbr-roster-badge.is-complete { color: #0f5124; background: #e7f6ec; border-color: #a6dbb7; }
+    .sbr-roster-badge.is-incomplete { color: #5c3c00; background: #fff6dd; border-color: #f0d38a; }
+    .sbr-roster-names summary { cursor: pointer; font-size: 12px; margin-top: 4px; }
+    .sbr-roster-names ol { margin: 4px 0 0 18px; font-size: 12px; }
+    .sbr-admin-roster .sbr-student-rows { display: grid; gap: 6px; }
+    .sbr-admin-roster .sbr-student-row { display: grid; grid-template-columns: 28px 1fr 1fr 80px; gap: 8px; align-items: end; border: 0; margin: 0; padding: 0; min-width: 0; }
+    .sbr-admin-roster .sbr-student-row[hidden] { display: none; }
+    .sbr-admin-roster .sbr-student-row-head { font-weight: 600; font-size: 12px; }
+    .sbr-admin-roster .sbr-student-legend { float: left; padding: 0; font-weight: 600; line-height: 30px; }
+    .sbr-admin-roster .sbr-field label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    .sbr-admin-roster .sbr-field input, .sbr-admin-roster .sbr-field select { width: 100%; max-width: none; }
+    .sbr-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
     </style>
 
     <script>
@@ -723,8 +758,9 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
         for (var i = 0; i < rows.length; i++) {
             var firstCell = rows[i].querySelector('td');
             if (firstCell && firstCell.textContent.trim() == registrationId) {
-                // Extract amounts from the amount details cell
-                var amountCell = rows[i].children[8]; // Amount Details column
+                // Extract amounts from the amount details cell (found by class; the column
+                // position changed when columns were added, which broke this before 1.1.0)
+                var amountCell = rows[i].querySelector('.sbr-amount-cell');
                 var totalText = amountCell.querySelector('strong').textContent;
                 totalAmount = parseFloat(totalText.replace(/[^\d.]/g, ''));
 
@@ -841,6 +877,45 @@ $outstanding_balance = $wpdb->get_var("SELECT SUM(balance_due) FROM $table_name 
             alert('Failed to copy link. Please copy it manually.');
         }
     }
+
+    // Team roster in the View/Edit dialog (1.1.0)
+    jQuery(document).on('click', '.sbr-roster-save, .sbr-roster-resend', function () {
+        var $btn = jQuery(this);
+        var $panel = $btn.closest('.sbr-admin-roster');
+        var $msg = $panel.find('.sbr-roster-msg');
+        var resend = $btn.hasClass('sbr-roster-resend');
+        if (resend && !confirm('Email a new roster link to the contact? Earlier roster links will stop working.')) {
+            return;
+        }
+        var data = {
+            action: resend ? 'sbr_resend_roster_link' : 'sbr_admin_save_roster',
+            nonce: sbrAdminNonce,
+            registration_id: $panel.data('registration-id')
+        };
+        if (!resend) {
+            $panel.find('.sbr-student-row[data-row]').each(function () {
+                var i = jQuery(this).data('row');
+                jQuery(this).find('input, select').each(function () {
+                    if (this.name) { data[this.name] = jQuery(this).val(); }
+                });
+            });
+        }
+        $btn.prop('disabled', true);
+        $msg.text(resend ? 'Sending…' : 'Saving…');
+        jQuery.post(ajaxurl, data).done(function (r) {
+            if (r && r.success) {
+                $msg.text(r.data.message);
+                if (r.data.badge) { $panel.find('h3 .sbr-roster-badge').replaceWith(r.data.badge); }
+                if (r.data.link) { $panel.find('.sbr-roster-link').prop('hidden', false).find('input').val(r.data.link); }
+            } else {
+                $msg.text('Not saved: ' + ((r && r.data) || 'unknown error'));
+            }
+        }).fail(function () {
+            $msg.text('The request failed. Please try again.');
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
 
     // Handle toggle test mode button clicks
     jQuery(document).ready(function($) {
