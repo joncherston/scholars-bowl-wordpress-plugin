@@ -47,144 +47,115 @@ if ($registration_deadline) {
 
 // If registration is closed, show message and return
 if ($is_registration_closed) {
-    echo '<div id="scholars-bowl-registration">';
-    echo '<div class="sbr-header">';
-    echo '<h2>' . esc_html($event_name) . '</h2>';
-    echo '<div class="event-details">';
-    echo '<p><strong>Date:</strong> ' . date('F j, Y', strtotime($event_date)) . '</p>';
-    echo '<p><strong>Location:</strong> ' . esc_html($event_location) . '</p>';
-    echo '</div>';
-    echo '</div>';
-    echo '<div class="sbr-closed-message" style="padding: 20px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px; margin: 20px 0;">';
-    echo '<h3 style="color: #856404; margin-top: 0;">⚠️ Registration Closed</h3>';
-    echo '<p style="color: #856404; font-size: 16px;">' . wp_kses_post($registration_closed_message) . '</p>';
-    if ($event->organizer_email) {
-        echo '<p style="color: #856404;"><strong>Contact:</strong> <a href="mailto:' . esc_attr($event->organizer_email) . '">' . esc_html($event->organizer_email) . '</a></p>';
-    }
-    if ($event->organizer_phone) {
-        echo '<p style="color: #856404;"><strong>Phone:</strong> ' . esc_html($event->organizer_phone) . '</p>';
-    }
-    echo '</div>';
-    echo '</div>';
+    ?>
+    <div id="scholars-bowl-registration" class="sbr-scope">
+        <div class="sbr-header sbr-card">
+            <h2 class="sbr-page-title"><?php echo esc_html($event_name); ?></h2>
+            <dl class="sbr-facts">
+                <div><dt>Date</dt><dd><?php echo esc_html(date('F j, Y', strtotime($event_date))); ?></dd></div>
+                <div><dt>Location</dt><dd><?php echo esc_html($event_location); ?></dd></div>
+            </dl>
+        </div>
+        <div class="sbr-closed-message sbr-alert sbr-alert-warning" role="status">
+            <h3>Registration closed</h3>
+            <p><?php echo wp_kses_post($registration_closed_message); ?></p>
+            <?php if ($event->organizer_email): ?>
+                <p><strong>Contact:</strong> <a href="mailto:<?php echo esc_attr($event->organizer_email); ?>"><?php echo esc_html($event->organizer_email); ?></a></p>
+            <?php endif; ?>
+            <?php if ($event->organizer_phone): ?>
+                <p><strong>Phone:</strong> <?php echo esc_html($event->organizer_phone); ?></p>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php
     return;
 }
 
+$min_students = intval($min_students);
+$max_students = intval($max_students);
+$max_additional = intval($max_additional);
+$roster_ready = class_exists('SBR_Roster') && SBR_Schema::roster_ready();
+$roster_deadline_text = $roster_ready ? SBR_Roster::format_deadline($event) : '';
+$req = '<span class="sbr-req" aria-hidden="true">*</span>';
 ?>
 
-<div id="scholars-bowl-registration">
-    <div class="sbr-header">
-        <h2><?php echo esc_html($event_name); ?></h2>
-        <div class="event-details">
-            <p><strong>Date:</strong> <?php echo date('F j, Y', strtotime($event_date)); ?></p>
-            <p><strong>Location:</strong> <?php echo esc_html($event_location); ?></p>
-            <div class="pricing-info">
-                <?php if ($is_early_bird): ?>
-                    <p class="early-bird-notice">
-                        <strong>Early Bird Pricing:</strong> $<?php echo number_format($early_bird_rate, 2); ?> per student
-                        (until <?php echo date('F j, Y', strtotime($early_bird_deadline)); ?>)
-                    </p>
-                <?php else: ?>
-                    <p class="standard-pricing">
-                        <strong>Standard Pricing:</strong> $<?php echo number_format($standard_rate, 2); ?> per student
-                    </p>
-                <?php endif; ?>
-            </div>
+<div id="scholars-bowl-registration" class="sbr-scope">
+    <div class="sbr-header sbr-card">
+        <h2 class="sbr-page-title"><?php echo esc_html($event_name); ?></h2>
+        <dl class="sbr-facts">
+            <div><dt>Date</dt><dd><?php echo esc_html(date('F j, Y', strtotime($event_date))); ?></dd></div>
+            <div><dt>Location</dt><dd><?php echo esc_html($event_location); ?></dd></div>
+        </dl>
+        <div class="pricing-info">
+            <?php if ($is_early_bird): ?>
+                <p class="early-bird-notice">
+                    <strong>Early bird pricing:</strong> $<?php echo esc_html(number_format($early_bird_rate, 2)); ?> per student
+                    (until <?php echo esc_html(date('F j, Y', strtotime($early_bird_deadline))); ?>)
+                </p>
+            <?php else: ?>
+                <p class="standard-pricing">
+                    <strong>Standard pricing:</strong> $<?php echo esc_html(number_format($standard_rate, 2)); ?> per student
+                </p>
+            <?php endif; ?>
         </div>
     </div>
 
-    <form id="sbr-registration-form" method="post">
+    <form id="sbr-registration-form" method="post" novalidate data-max-additional="<?php echo esc_attr($max_additional); ?>">
         <?php wp_nonce_field('sbr_nonce', 'sbr_nonce'); ?>
         <input type="hidden" id="event_id" name="event_id" value="<?php echo esc_attr($event->id); ?>">
         <input type="hidden" id="event_slug" name="event_slug" value="<?php echo esc_attr($event->event_slug); ?>">
 
         <!-- Honeypot field for spam protection (should remain empty) -->
-        <div style="position: absolute; left: -9999px; visibility: hidden;" aria-hidden="true">
+        <div class="sbr-hp" aria-hidden="true">
             <label for="website">Website (leave blank):</label>
             <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
         </div>
 
-        <div class="form-section">
+        <p class="sbr-required-note">Fields marked <span class="sbr-req" aria-hidden="true">*</span><span class="sbr-sr-only">with an asterisk</span> are required.</p>
+
+        <div class="form-section sbr-card">
             <h3>School Information</h3>
             <div class="form-row">
-                <label for="school_name">School Name *</label>
-                <input type="text" id="school_name" name="school_name" required>
+                <label for="school_name">School name <?php echo $req; ?></label>
+                <input type="text" id="school_name" name="school_name" required aria-required="true" autocomplete="organization">
             </div>
         </div>
 
-        <div class="form-section">
+        <div class="form-section sbr-card">
             <h3>Contact Information</h3>
             <div class="form-row">
-                <label for="contact_name">Contact Name *</label>
-                <input type="text" id="contact_name" name="contact_name" required>
+                <label for="contact_name">Contact name <?php echo $req; ?></label>
+                <input type="text" id="contact_name" name="contact_name" required aria-required="true" autocomplete="name">
+            </div>
+            <div class="sbr-grid-2">
+                <div class="form-row">
+                    <label for="contact_email">Email address <?php echo $req; ?></label>
+                    <input type="email" id="contact_email" name="contact_email" required aria-required="true" autocomplete="email">
+                </div>
+                <div class="form-row">
+                    <label for="contact_phone">Phone number <?php echo $req; ?></label>
+                    <input type="tel" id="contact_phone" name="contact_phone" required aria-required="true" autocomplete="tel">
+                </div>
             </div>
             <div class="form-row">
-                <label for="contact_email">Email Address *</label>
-                <input type="email" id="contact_email" name="contact_email" required>
-            </div>
-            <div class="form-row">
-                <label for="contact_phone">Phone Number *</label>
-                <input type="tel" id="contact_phone" name="contact_phone" required>
-            </div>
-            <div class="form-row">
-                <label for="dietary_restrictions">Dietary Restrictions / Allergies</label>
-                <textarea id="dietary_restrictions" name="dietary_restrictions" rows="3" 
+                <label for="dietary_restrictions">Dietary restrictions / allergies</label>
+                <textarea id="dietary_restrictions" name="dietary_restrictions" rows="3" aria-describedby="dietary_help"
                     placeholder="Please list any dietary restrictions, food allergies, or special dietary needs for your team (optional)"></textarea>
-                <p class="description">Optional: Help us accommodate your team's dietary needs.</p>
+                <p class="description" id="dietary_help">Optional: help us accommodate your team's dietary needs.</p>
             </div>
         </div>
 
-        <div class="form-section">
+        <div class="form-section sbr-card">
             <h3>Team Information</h3>
             <div class="form-row">
-                <label for="competing_students">Number of Competing Students *</label>
-                <select id="competing_students" name="competing_students" required>
-                    <option value="">Select...</option>
-                    <?php for ($i = $min_students; $i <= $max_students; $i++): ?>
-                        <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
-                    <?php endfor; ?>
-                </select>
-                <small>Between <?php echo $min_students; ?> and <?php echo $max_students; ?> competing students per team</small>
-            </div>
-
-            <div class="form-row">
-                <label for="additional_students">Additional Student Attendees</label>
-                <select id="additional_students" name="additional_students">
-                    <?php for ($i = 0; $i <= $max_additional; $i++): ?>
-                        <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
-                    <?php endfor; ?>
-                </select>
-                <small>Combined total of additional students and adults cannot exceed <?php echo $max_additional; ?></small>
-
-
-
-            <div class="form-row">
-                <label for="additional_adults">Additional Adult Attendees</label>
-                <select id="additional_adults" name="additional_adults">
-                    <?php for ($i = 0; $i <= $max_additional; $i++): ?>
-                        <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
-                    <?php endfor; ?>
-                </select>
-                <small>Parents, administrators, or other adult attendees</small>
-            </div>
-            <div class="form-row">
-                <label for="coaches">Number of Coaches</label>
-                <select id="coaches" name="coaches">
-                    <?php for ($i = 0; $i <= 4; $i++): ?>
-                        <option value="<?php echo $i; ?>"><?php echo $i; ?></option>
-                    <?php endfor; ?>
-                </select>
-                <small>First <?php echo $event->free_coaches; ?> coaches are free, maximum 4 coaches total</small>
-            </div>
-
-            <div class="form-row">
-                <label for="grade_level">School Classification *</label>
-                <select id="grade_level" name="grade_level" required>
+                <label for="grade_level">School classification <?php echo $req; ?></label>
+                <select id="grade_level" name="grade_level" required aria-required="true">
                     <option value="">Select...</option>
                     <optgroup label="Morning Session (<?php echo esc_attr($morning_session_time); ?>)">
                         <?php foreach ($morning_classifications as $classification): ?>
                             <?php $classification = trim($classification); ?>
                             <?php if (!empty($classification)): ?>
-                                <option value="<?php echo esc_attr($classification); ?>">
+                                <option value="<?php echo esc_attr($classification); ?>" data-session="<?php echo esc_attr('Morning Session (' . $morning_session_time . ')'); ?>">
                                     <?php echo esc_html($classification === 'Private' ? 'Private School' : $classification); ?>
                                 </option>
                             <?php endif; ?>
@@ -194,7 +165,7 @@ if ($is_registration_closed) {
                         <?php foreach ($afternoon_classifications as $classification): ?>
                             <?php $classification = trim($classification); ?>
                             <?php if (!empty($classification)): ?>
-                                <option value="<?php echo esc_attr($classification); ?>">
+                                <option value="<?php echo esc_attr($classification); ?>" data-session="<?php echo esc_attr('Afternoon Session (' . $afternoon_session_time . ')'); ?>">
                                     <?php echo esc_html($classification); ?>
                                 </option>
                             <?php endif; ?>
@@ -202,74 +173,131 @@ if ($is_registration_closed) {
                     </optgroup>
                 </select>
             </div>
+
+            <div class="sbr-grid-2">
+                <div class="form-row">
+                    <label for="competing_students">Number of competing students <?php echo $req; ?></label>
+                    <select id="competing_students" name="competing_students" required aria-required="true" aria-describedby="competing_help">
+                        <option value="">Select...</option>
+                        <?php for ($i = $min_students; $i <= $max_students; $i++): ?>
+                            <option value="<?php echo intval($i); ?>"><?php echo intval($i); ?></option>
+                        <?php endfor; ?>
+                    </select>
+                    <small id="competing_help">Between <?php echo intval($min_students); ?> and <?php echo intval($max_students); ?> competing students per team</small>
+                </div>
+
+                <div class="form-row">
+                    <label for="coaches">Number of coaches</label>
+                    <select id="coaches" name="coaches" aria-describedby="coaches_help">
+                        <?php for ($i = 0; $i <= 4; $i++): ?>
+                            <option value="<?php echo intval($i); ?>"><?php echo intval($i); ?></option>
+                        <?php endfor; ?>
+                    </select>
+                    <small id="coaches_help">First <?php echo intval($event->free_coaches); ?> coaches are free, maximum 4 coaches total</small>
+                </div>
+            </div>
+
+            <div class="sbr-grid-2">
+                <div class="form-row">
+                    <label for="additional_students">Additional student attendees</label>
+                    <select id="additional_students" name="additional_students" aria-describedby="additional_help">
+                        <?php for ($i = 0; $i <= $max_additional; $i++): ?>
+                            <option value="<?php echo intval($i); ?>"><?php echo intval($i); ?></option>
+                        <?php endfor; ?>
+                    </select>
+                    <small id="additional_help">Combined total of additional students and adults cannot exceed <?php echo intval($max_additional); ?></small>
+                </div>
+
+                <div class="form-row">
+                    <label for="additional_adults">Additional adult attendees</label>
+                    <select id="additional_adults" name="additional_adults" aria-describedby="adults_help">
+                        <?php for ($i = 0; $i <= $max_additional; $i++): ?>
+                            <option value="<?php echo intval($i); ?>"><?php echo intval($i); ?></option>
+                        <?php endfor; ?>
+                    </select>
+                    <small id="adults_help">Parents, administrators, or other adult attendees</small>
+                </div>
+            </div>
+            <p class="additional-helper" aria-live="polite"></p>
         </div>
 
-        <div class="form-section">
+        <?php if ($roster_ready): ?>
+        <div class="form-section sbr-card sbr-roster-section">
+            <h3>Competing Students <span class="sbr-optional">(optional)</span></h3>
+            <p id="roster_help">If you know your team, enter your competing students' names and grades. If not, leave this blank:
+               your confirmation email has a private link for adding or changing names until <?php echo esc_html($roster_deadline_text); ?>.
+               Names don't change the price.</p>
+            <?php echo SBR_Roster::rows_html(array(), array(), 'sbr', 0); ?>
+            <p class="sbr-roster-hint sbr-muted" aria-live="polite"></p>
+        </div>
+        <?php endif; ?>
+
+        <div class="form-section sbr-card">
             <h3>Payment Options</h3>
-            <div class="form-row">
-                <label>Payment Type *</label>
+            <fieldset class="form-row sbr-fieldset">
+                <legend>Payment type <?php echo $req; ?></legend>
                 <div class="radio-group">
                     <label>
                         <input type="radio" name="payment_option" value="deposit" checked>
-                        Pay $<span id="deposit-amount"><?php echo number_format($event->deposit_amount, 2); ?></span> deposit now (flat fee)
+                        <span>Pay $<span id="deposit-amount"><?php echo esc_html(number_format($event->deposit_amount, 2)); ?></span> deposit now (flat fee)</span>
                     </label>
                     <label>
                         <input type="radio" name="payment_option" value="full">
-                        Pay full amount now
+                        <span>Pay full amount now</span>
                     </label>
                 </div>
-            </div>
+            </fieldset>
 
-            <div class="form-row">
-                <label>Payment Method *</label>
+            <fieldset class="form-row sbr-fieldset">
+                <legend>Payment method <?php echo $req; ?></legend>
                 <div class="radio-group">
                     <label>
                         <input type="radio" name="payment_method" value="credit" checked>
-                        Credit Card (Stripe)
+                        <span>Credit card (Stripe)</span>
                     </label>
                     <label>
                         <input type="radio" name="payment_method" value="check">
-                        Check (mail payment)
+                        <span>Check (mail payment)</span>
                     </label>
                     <label>
                         <input type="radio" name="payment_method" value="cash">
-                        Cash (in-person payment)
+                        <span>Cash (in-person payment)</span>
                     </label>
                 </div>
-            </div>
+            </fieldset>
         </div>
 
-        <div class="form-section cost-summary">
-            <h3>Cost Summary</h3>
-            <div id="cost-breakdown">
+        <div class="form-section sbr-card cost-summary" aria-labelledby="cost_summary_heading">
+            <h3 id="cost_summary_heading">Cost Summary</h3>
+            <div id="cost-breakdown" aria-live="polite" aria-atomic="true">
                 <div class="cost-line">
-                    <span>Current Rate:</span>
-                    <span>$<span id="current-rate"><?php echo number_format($current_rate, 2); ?></span> per student</span>
+                    <span>Current rate</span>
+                    <span class="sbr-num">$<span id="current-rate"><?php echo esc_html(number_format($current_rate, 2)); ?></span> per student</span>
                 </div>
                 <div class="cost-line">
-                    <span>Total Attendees:</span>
-                    <span id="total-attendees">0</span>
+                    <span>Total attendees</span>
+                    <span class="sbr-num" id="total-attendees">0</span>
                 </div>
                 <div class="cost-line total-cost">
-                    <span>Total Amount:</span>
-                    <span>$<span id="total-amount">0.00</span></span>
+                    <span>Total amount</span>
+                    <span class="sbr-num">$<span id="total-amount">0.00</span></span>
                 </div>
                 <div class="cost-line payment-amount">
-                    <span>Payment Amount:</span>
-                    <span>$<span id="payment-amount">0.00</span></span>
+                    <span>Payment amount</span>
+                    <span class="sbr-num">$<span id="payment-amount">0.00</span></span>
                 </div>
             </div>
         </div>
 
-        <div id="credit-card-section" class="form-section payment-section">
+        <div id="credit-card-section" class="form-section sbr-card payment-section">
             <h3>Credit Card Information</h3>
-            <div id="card-element">
+            <div id="card-element" class="sbr-stripe-element">
                 <!-- Stripe Elements will create form elements here -->
             </div>
-            <div id="card-errors" role="alert"></div>
+            <div id="card-errors" class="sbr-field-error" role="alert"></div>
         </div>
 
-        <div id="check-payment-section" class="form-section payment-section" style="display: none;">
+        <div id="check-payment-section" class="form-section sbr-card payment-section">
             <h3>Check Payment Instructions</h3>
             <div class="payment-instructions">
                 <p><strong>Send your check payment to:</strong></p>
@@ -291,7 +319,7 @@ if ($is_registration_closed) {
             </div>
         </div>
 
-        <div id="cash-payment-section" class="form-section payment-section" style="display: none;">
+        <div id="cash-payment-section" class="form-section sbr-card payment-section">
             <h3>Cash Payment Instructions</h3>
             <p>After submitting this form, you will receive confirmation and cash payment instructions via email, including:</p>
             <ul>
@@ -303,366 +331,10 @@ if ($is_registration_closed) {
         </div>
 
         <div class="form-actions">
-            <button type="submit" id="submit-registration" class="sbr-submit-btn">
+            <div id="form-messages" tabindex="-1"></div>
+            <button type="submit" id="submit-registration" class="sbr-submit-btn sbr-btn sbr-btn-primary sbr-btn-large">
                 <span>Complete Registration</span>
             </button>
-            <div id="form-messages"></div>
         </div>
     </form>
 </div>
-
-<style>
-#scholars-bowl-registration {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 20px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-}
-
-.sbr-header {
-    text-align: center;
-    margin-bottom: 30px;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.sbr-header h2 {
-    margin: 0 0 15px 0;
-    color: #2c3e50;
-}
-
-.event-details p {
-    margin: 5px 0;
-    font-size: 16px;
-}
-
-.pricing-info {
-    margin-top: 15px;
-    padding: 10px;
-    border-radius: 5px;
-}
-
-.early-bird-notice {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
-
-.standard-pricing {
-    background: #fff3cd;
-    color: #856404;
-    border: 1px solid #ffeaa7;
-}
-
-.form-section {
-    margin-bottom: 30px;
-    padding: 20px;
-    background: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-}
-
-.form-section h3 {
-    margin: 0 0 20px 0;
-    color: #495057;
-    border-bottom: 2px solid #e9ecef;
-    padding-bottom: 10px;
-}
-
-.form-row {
-    margin-bottom: 20px;
-}
-
-.form-row label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 600;
-    color: #495057;
-}
-
-.form-row input,
-.form-row select,
-.form-row textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    font-size: 16px;
-    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-
-.form-row input:focus,
-.form-row select:focus,
-.form-row textarea:focus {
-    border-color: #80bdff;
-    outline: 0;
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-}
-
-.form-row small {
-    display: block;
-    margin-top: 5px;
-    color: #6c757d;
-    font-size: 14px;
-}
-
-.radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.radio-group label {
-    display: flex;
-    align-items: center;
-    font-weight: normal;
-    cursor: pointer;
-}
-
-.radio-group input[type="radio"] {
-    width: auto;
-    margin-right: 10px;
-}
-
-.cost-summary {
-    background: #f8f9fa;
-    border: 2px solid #007bff;
-}
-
-#cost-breakdown {
-    font-size: 16px;
-}
-
-.cost-line {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    padding: 5px 0;
-}
-
-.total-cost {
-    border-top: 2px solid #007bff;
-    padding-top: 10px;
-    margin-top: 10px;
-    font-weight: bold;
-    font-size: 18px;
-    color: #007bff;
-}
-
-.payment-amount {
-    background: #e7f3ff;
-    padding: 10px;
-    border-radius: 4px;
-    font-weight: bold;
-    color: #0056b3;
-}
-
-#card-element {
-    background: white;
-    padding: 12px;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    margin-bottom: 15px;
-}
-
-#card-errors {
-    color: #dc3545;
-    margin-top: 10px;
-}
-
-.form-actions {
-    text-align: center;
-    margin-top: 30px;
-}
-
-.sbr-submit-btn {
-    background: #007bff;
-    color: white;
-    border: none;
-    padding: 15px 30px;
-    font-size: 18px;
-    border-radius: 5px;
-    cursor: pointer;
-    transition: background-color 0.15s ease-in-out;
-}
-
-.sbr-submit-btn:hover {
-    background: #0056b3;
-}
-
-.sbr-submit-btn:disabled {
-    background: #6c757d;
-    cursor: not-allowed;
-}
-
-#form-messages {
-    margin-top: 15px;
-    padding: 10px;
-    border-radius: 4px;
-    display: none;
-}
-
-.success-message {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
-
-.error-message {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
-
-.payment-section {
-    display: none;
-}
-
-.payment-section.active {
-    display: block;
-}
-
-.payment-instructions {
-    background: #f8f9fa;
-    padding: 15px;
-    border-radius: 5px;
-    border-left: 4px solid #007bff;
-}
-
-.address-block {
-    background: white;
-    padding: 12px;
-    margin: 10px 0;
-    border-radius: 4px;
-    border: 1px solid #dee2e6;
-    font-family: monospace;
-    line-height: 1.4;
-}
-
-/* Animation Integration */
-.form-section.loaded {
-    animation: none;
-}
-
-.radio-group label.selected {
-    background: rgba(0, 123, 255, 0.1);
-    border-color: #007bff;
-    color: #007bff;
-}
-
-.ajax-loading {
-    cursor: wait;
-}
-
-.ajax-loading * {
-    pointer-events: none;
-}
-
-.payment-amount-highlight {
-    animation: pulseHighlight 0.8s ease-in-out;
-}
-
-@keyframes pulseHighlight {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.02); box-shadow: 0 0 20px rgba(0, 123, 255, 0.3); }
-}
-
-@media (max-width: 768px) {
-    #scholars-bowl-registration {
-        padding: 10px;
-    }
-
-    .form-section {
-        padding: 15px;
-    }
-
-    .cost-line {
-        font-size: 14px;
-    }
-
-    .radio-group {
-        gap: 15px;
-    }
-
-    .form-section:hover {
-        transform: none;
-        box-shadow: none;
-    }
-
-    .processing-text {
-        font-size: 16px;
-    }
-
-    .processing-spinner {
-        width: 40px;
-        height: 40px;
-    }
-}
-</style>
-
-<script type="text/javascript">
-jQuery(document).ready(function($) {
-    var maxAdditional = <?php echo $max_additional; ?>;
-    var studentSelect = $("#additional_students");
-    var adultSelect = $("#additional_adults");
-    
-    // Function to update dropdown options based on the other dropdown's selection
-    function updateDropdowns() {
-        var studentsSelected = parseInt(studentSelect.val()) || 0;
-        var adultsSelected = parseInt(adultSelect.val()) || 0;
-        
-        // Update adults dropdown based on students selection
-        var adultsAvailable = maxAdditional - studentsSelected;
-        var currentAdultValue = adultsSelected;
-        adultSelect.empty();
-        for (var i = 0; i <= adultsAvailable; i++) {
-            adultSelect.append($("<option>", {
-                value: i,
-                text: i,
-                selected: i === currentAdultValue && i <= adultsAvailable
-            }));
-        }
-        
-        // Update students dropdown based on adults selection
-        var studentsAvailable = maxAdditional - adultsSelected;
-        var currentStudentValue = studentsSelected;
-        studentSelect.empty();
-        for (var i = 0; i <= studentsAvailable; i++) {
-            studentSelect.append($("<option>", {
-                value: i,
-                text: i,
-                selected: i === currentStudentValue && i <= studentsAvailable
-            }));
-        }
-        
-        // Update the helper text to show remaining slots
-        var totalSelected = studentsSelected + adultsSelected;
-        var remaining = maxAdditional - totalSelected;
-        var helperText = "Total additional attendees: " + totalSelected + " of " + maxAdditional;
-        if (remaining > 0) {
-            helperText += " (" + remaining + " remaining)";
-        }
-        
-        // Update or add helper text after additional_adults select
-        var helperElement = adultSelect.next(".additional-helper");
-        if (helperElement.length === 0) {
-            adultSelect.after("<small class='additional-helper' style='display: block; margin-top: 5px; font-weight: bold; color: #007bff;'></small>");
-            helperElement = adultSelect.next(".additional-helper");
-        }
-        helperElement.text(helperText);
-    }
-    
-    // Bind change events to both dropdowns
-    studentSelect.on("change", function() {
-        updateDropdowns();
-    });
-    
-    adultSelect.on("change", function() {
-        updateDropdowns();
-    });
-    
-    // Initialize on page load
-    updateDropdowns();
-});
-</script>
