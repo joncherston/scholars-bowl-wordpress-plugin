@@ -65,6 +65,7 @@ body {
 
 h1, h2, h3, h4, h5, h6,
 .entry-title,
+.main-title,
 .site-title {
     font-family: var(--font-head);
     color: var(--suscc-navy);
@@ -124,6 +125,8 @@ a:focus {
 .main-title a,
 .site-title a {
     color: var(--suscc-navy);
+    font-weight: 800;
+    text-decoration: none;
 }
 .site-description {
     color: var(--muted);
@@ -323,6 +326,13 @@ select:focus {
 @media (max-width: 768px) {
     body {
         font-size: 16px;
+    }
+    /* keep a gutter around the plugin's cards on phones */
+    .separate-containers .inside-article:has(#scholars-bowl-registration),
+    .separate-containers .inside-article:has(.sbr-payment-completion),
+    .sbr-roster-page .inside-article {
+        padding-left: 12px;
+        padding-right: 12px;
     }
     .site-content {
         padding-top: 16px;
