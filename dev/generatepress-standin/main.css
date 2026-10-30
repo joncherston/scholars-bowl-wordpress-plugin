@@ -1,0 +1,42 @@
+/* Approximation of GeneratePress 3.x main.min.css + default customizer output */
+html{-webkit-text-size-adjust:100%}body{margin:0;background-color:#f7f8f9;color:#222;font-family:-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;font-size:17px;line-height:1.5}
+*,*::before,*::after{box-sizing:border-box}
+a{color:#1e73be}a:hover{color:#000}
+h1{font-size:42px;margin-bottom:20px;font-weight:400}h2{font-size:35px;margin-bottom:20px;font-weight:400}h3{font-size:29px;margin-bottom:20px}
+p{margin:0 0 1.5em}ul,ol{margin:0 0 1.5em 3em;padding:0}
+.grid-container{max-width:1200px;margin-left:auto;margin-right:auto}
+.screen-reader-text{border:0;clip:rect(1px,1px,1px,1px);clip-path:inset(50%);height:1px;margin:-1px;overflow:hidden;padding:0;position:absolute!important;width:1px;word-wrap:normal!important}
+.screen-reader-text:focus{clip:auto!important;clip-path:none;display:block;height:auto;left:5px;top:5px;width:auto;z-index:100000}
+.site-header{background-color:#fff}
+.inside-header{display:flex;align-items:center;padding:20px 40px}
+.site-branding{margin-right:auto}.main-title{margin:0;font-size:25px;font-weight:700;line-height:1.2}.main-title a{text-decoration:none;color:#222}.site-description{margin:0;font-size:15px}
+.site-logo img{display:block;height:60px;width:auto}
+.main-navigation{z-index:100;padding:0;clear:both;display:block;background-color:#fff}
+.main-navigation ul{list-style:none;margin:0;padding-left:0}
+.main-navigation .main-nav ul{display:flex;flex-wrap:wrap}
+.main-navigation .main-nav ul li a{display:block;padding-left:20px;padding-right:20px;line-height:60px;text-decoration:none;color:#515151;font-size:15px}
+.main-navigation .main-nav ul li:not([class*="current-menu-"]):hover>a{color:#7a8896;background-color:#fff}
+.main-navigation .main-nav ul li[class*="current-menu-"]>a{color:#7a8896;background-color:#fff}
+.site-content{display:flex}
+.content-area{width:100%}
+.separate-containers .inside-article{padding:40px;margin-bottom:20px;background-color:#fff}
+.separate-containers .site-main{margin:20px}
+.entry-header{margin-bottom:2em}.entry-title{margin-bottom:0}
+.entry-content:not(:first-child){margin-top:2em}
+button,html input[type=button],input[type=reset],input[type=submit],a.button{background:#55555e;color:#fff;border:1px solid transparent;cursor:pointer;-webkit-appearance:button;padding:10px 20px;font-size:inherit}
+input[type=email],input[type=number],input[type=password],input[type=search],input[type=tel],input[type=text],input[type=url],select,textarea{background-color:#fafafa;border-color:#ccc;color:#666;border:1px solid #ccc;border-radius:0;padding:10px 15px;box-sizing:border-box;max-width:100%;font-size:inherit}
+table{border-collapse:separate;border-spacing:0;border-width:1px 0 0 1px;margin:0 0 1.5em;width:100%}
+.site-info{background-color:#222;color:#fff;text-align:center;font-size:15px}
+.inside-site-info{display:flex;align-items:center;justify-content:center;padding:20px 40px}
+.site-info a{color:#fff}
+.menu-toggle{display:none}
+@media (max-width:768px){
+ .inside-header{flex-direction:column;text-align:center;padding:20px 30px}
+ .site-branding{margin:0 0 10px}
+ .main-navigation .main-nav ul{justify-content:center}
+ .main-navigation .main-nav ul li a{line-height:44px;padding:0 12px}
+ .separate-containers .inside-article{padding:30px}
+ .separate-containers .site-main{margin:10px 0}
+ h1{font-size:31px}h2{font-size:27px}h3{font-size:24px}
+ .inside-site-info{padding:20px 30px}
+}
