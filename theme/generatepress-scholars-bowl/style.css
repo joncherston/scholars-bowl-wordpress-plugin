@@ -1,0 +1,105 @@
+/*
+Theme Name: GeneratePress - Scholars Bowl
+Description: Custom child theme for GeneratePress
+Template: generatepress
+Version: 2.0.0
+Author: Jonathan Herston
+Text Domain: generatepress-scholars-bowl
+*/
+
+/* Import parent theme styles */
+@import url("../generatepress/style.css");
+
+/* CSS Variables for consistent design */
+:root {
+    --primary-color: #27428e;
+    --primary-dark: #005a87;
+    --secondary-color: #f8fafe;
+    --accent-color: #e8f4f8;
+    --text-color: #333;
+    --border-color: #ddd;
+    --success-color: #46b450;
+    --warning-color: #856404;
+    --warning-bg: #fff3cd;
+    --danger-color: #dc3545;
+    --light-bg: #f9f9f9;
+    --white: #ffffff;
+    --shadow: 0 2px 10px rgba(0,0,0,0.1);
+    --radius: 6px;
+    --mobile-breakpoint: 768px;
+    --tablet-breakpoint: 1024px;
+}
+
+/* Fade in effect */
+/* --- Simple 1-Second Page Fade-In --- */
+
+body {
+    /* Defines the animation: name, duration, and timing function */
+    animation: fadeInAnimation 1.5s ease-in-out;
+
+    /* Keeps the page visible after the animation completes */
+    animation-fill-mode: forwards;
+}
+
+@keyframes fadeInAnimation {
+    /* The starting point of the animation (completely transparent) */
+    from {
+        opacity: 0;
+    }
+    /* The ending point of the animation (fully visible) */
+    to {
+        opacity: 1;
+    }
+}
+/* Header Styling */
+.page-template-default .site-header {
+   background-color: #FFFFFF;
+   border-bottom: solid;
+   border-color: #27428e;
+   border-width: .25em;
+}
+/* Container Styling */
+.page-template-default .inside-header.grid-container {
+   border-top: 0;
+   border-bottom: solid;
+   border-color: #27428e;
+   border-width: .25em;
+}
+/* Content Section Customizations */
+.page-template-default .grid-container {
+   max-width: 100%;
+   border-top: solid;
+   border-width: 1em;
+   border-color: #fdd542;
+}
+/* Total Section Syling */
+button.sbr-submit-btn {
+   background-color: #005a87;
+}
+.form-section.cost-summary.loaded {
+   border-color: #005a87;
+}
+.form-section.cost-summary.loaded .total-cost {
+   border-top: solid;
+   border-top-color: #005a87;
+   color: #005a87
+}
+.form-section.cost-summary.loaded .payment-amount {
+   color: #005a87;
+}
+/* Content Section Bottom Border Styling */
+.page-template-default .content-area {
+   max-width: 100%;
+   border-bottom: solid;
+   border-color: #27428e;
+   border-bottom-width: .5em;
+}
+/* Remove Page Name for registration page* */
+.page-template-default .entry-title {
+   display: none;
+}
+.page-template-default .sbr-header {
+   border: solid;
+   border-width: .01em;
+   border-color: #0F0F0F;
+}
